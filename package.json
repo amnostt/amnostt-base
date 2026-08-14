@@ -1,5 +1,8 @@
 {
   "name": "amnostt-base",
   "private": true,
+  "scripts": {
+    "dev:web": "pnpm --filter @amnostt/web dev"
+  },
   "packageManager": "pnpm@11.1.2"
 }

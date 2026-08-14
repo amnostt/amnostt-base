@@ -1,0 +1,16 @@
+main {
+  display: grid;
+  min-height: 100vh;
+  place-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+button {
+  width: fit-content;
+  margin: 0 auto;
+  padding: 0.75rem 1rem;
+  font: inherit;
+  cursor: pointer;
+}
