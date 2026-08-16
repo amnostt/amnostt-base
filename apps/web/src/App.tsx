@@ -1,16 +1,21 @@
 import { useState } from 'react'
-import './App.css'
+import { Button } from '@/components/ui/button'
 
 function App() {
   const [count, setCount] = useState(0)
 
   return (
-    <main>
-      <h1>Amnostt</h1>
-      <p>React application is running.</p>
-      <button type="button" onClick={() => setCount((value) => value + 1)}>
+    <main className="grid min-h-screen place-content-center gap-4 p-8 text-center">
+      <h1 className="text-3xl font-semibold">Amnostt</h1>
+      <p className="text-muted-foreground">
+        React application is running.
+      </p>
+      <Button
+        type="button"
+        onClick={() => setCount((value) => value + 1)}
+      >
         Count: {count}
-      </button>
+      </Button>
     </main>
   )
 }
