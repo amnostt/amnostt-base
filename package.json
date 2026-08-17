@@ -3,7 +3,11 @@
   "private": true,
   "scripts": {
     "dev:web": "pnpm --filter @amnostt/web dev",
-    "dev:api": "pnpm --filter @amnostt/api start:dev"
+    "dev:api": "pnpm --filter @amnostt/api start:dev",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:ps": "docker compose ps",
+    "db:logs": "docker compose logs --tail=100 db"
   },
   "packageManager": "pnpm@11.1.2"
 }
