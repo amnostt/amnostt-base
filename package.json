@@ -7,7 +7,10 @@
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:ps": "docker compose ps",
-    "db:logs": "docker compose logs --tail=100 db"
+    "db:logs": "docker compose logs --tail=100 db",
+    "prisma:generate": "pnpm --filter @amnostt/api exec prisma generate",
+    "db:migrate": "pnpm --filter @amnostt/api exec prisma migrate dev",
+    "db:studio": "pnpm --filter @amnostt/api exec prisma studio"
   },
   "packageManager": "pnpm@11.1.2"
 }

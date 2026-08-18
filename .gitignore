@@ -8,3 +8,5 @@ dist/
 *.log
 
 .atl/*
+
+apps/api/src/generated/
