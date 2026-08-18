@@ -2,8 +2,12 @@
   "name": "amnostt-base",
   "private": true,
   "scripts": {
+    "dev": "pnpm --parallel --filter @amnostt/web --filter @amnostt/api run dev",
     "dev:web": "pnpm --filter @amnostt/web dev",
-    "dev:api": "pnpm --filter @amnostt/api start:dev",
+    "dev:api": "pnpm --filter @amnostt/api dev",
+    "build": "pnpm --parallel --filter @amnostt/web --filter @amnostt/api run build",
+    "lint": "pnpm --parallel --filter @amnostt/web --filter @amnostt/api run lint",
+    "test": "pnpm --filter @amnostt/api test",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:ps": "docker compose ps",
