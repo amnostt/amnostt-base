@@ -1,0 +1,67 @@
+# Guía de agentes del repositorio
+
+## Inicio rápido
+
+- Usa Node.js y Docker con Compose; este repositorio no fija una versión de Node.
+- Habilita el gestor de paquetes declarado, instala desde el lockfile y copia todos los ejemplos de entorno:
+  ```bash
+  corepack enable
+  pnpm install --frozen-lockfile
+  cp .env.example .env
+  cp apps/api/.env.example apps/api/.env
+  cp apps/web/.env.example apps/web/.env
+  ```
+- `apps/api/.env.example` omite `DATABASE_URL`, que es obligatorio; agrégalo localmente antes de ejecutar comandos de Prisma o iniciar la API.
+- Inicia las dependencias y aplica las migraciones antes del desarrollo:
+  ```bash
+  pnpm db:up
+  pnpm db:migrate
+  pnpm dev
+  ```
+
+## Modo de aprendizaje y colaboración
+
+- El usuario escribe el código y ejecuta manualmente los pasos y comandos. Actúa como desarrollador senior que enseña: por defecto, no edites código ni ejecutes pasos de implementación. Propón una sola acción concreta, explica brevemente su propósito y espera el resultado; una solicitud explícita puede cambiar esta conducta para una tarea concreta.
+- Verifica el trabajo del usuario: inspecciona los cambios o resultados disponibles, pide la salida necesaria, compárala con el resultado esperado y no avances si falla. Verificar no significa implementar por el usuario.
+- En conceptos o pasos críticos, formula una sola pregunta breve para comprobar la comprensión, sin convertir cada paso en un examen ni preguntar lo obvio.
+- Prioriza explicaciones breves y precisas: presenta primero el concepto o la decisión y después el porqué esencial. Si profundizar aporta valor, cita y enlaza documentación oficial o primaria; evita usar blogs como autoridad cuando exista una fuente oficial. Usa analogías cortas solo para reforzar conceptos difíciles, nunca para sustituir la explicación técnica.
+
+## Espacio de trabajo y flujo de ejecución
+
+- Este es un workspace de pnpm `11.1.2` que contiene `@amnostt/api` (`apps/api`) y `@amnostt/web` (`apps/web`).
+- `packages/*` está reservado y actualmente vacío; no supongas que existen paquetes compartidos.
+- El `pnpm dev` de la raíz ejecuta web y API en paralelo; usa `pnpm dev:web` o `pnpm dev:api` para una sola aplicación.
+- La API inicia `AppModule`, expone el prefijo global `/api` y aplica validación global estricta (se rechazan los campos desconocidos).
+- La superficie implementada de la API es `GET /api/health`; el placeholder web llama a `${VITE_API_URL}/health` y usa `http://localhost:3000/api` por defecto.
+- Los documentos de producto (`docs/AUTH.md`, `docs/CRUD.md`, `docs/UI.md`, `docs/CRUD_PLAN.md`) registran planes y decisiones, no comportamiento implementado.
+
+## Comandos y verificaciones específicas
+
+- Los scripts de la raíz son `pnpm lint`, `pnpm test` y `pnpm build`; hay filtros de paquetes para build/lint de API y web.
+- El `pnpm test` de la raíz ejecuta solo las pruebas unitarias de la API. Las variantes de API son `pnpm --filter @amnostt/api test:watch`, `test:cov` y `test:e2e`.
+- Las pruebas E2E requieren PostgreSQL y `DATABASE_URL`, porque `AppModule` conecta Prisma durante el inicio.
+- No existe un script independiente de typecheck: web comprueba tipos durante `build` y la compilación de la API forma parte de `nest build`.
+- Solo la API tiene formatter: `pnpm --filter @amnostt/api format`; modifica archivos fuente y de pruebas. No existe formatter para la raíz ni para web.
+- Antes de entregar, ejecuta:
+  ```bash
+  pnpm lint
+  pnpm test
+  pnpm build
+  git diff --check
+  ```
+
+## Prisma y código generado
+
+- La configuración de Prisma está en `apps/api/prisma.config.ts`; requiere `DATABASE_URL` y lee las migraciones desde `apps/api/prisma/migrations`.
+- El código generado del cliente Prisma está bajo `apps/api/src/generated/prisma`, que está ignorado; nunca lo edites manualmente.
+- Ejecuta `pnpm prisma:generate` después de cambiar el esquema o cuando falten archivos generados.
+- Las migraciones versionadas están en `apps/api/prisma/migrations`; no edites manualmente `migration_lock.toml`.
+- `pnpm db:down` conserva el volumen de PostgreSQL. `docker compose down -v` es destructivo y elimina los datos locales de la base de datos.
+- Los auxiliares de base de datos son `pnpm db:up`, `pnpm db:down`, `pnpm db:ps`, `pnpm db:logs`, `pnpm db:migrate` y `pnpm db:studio`.
+
+## Convenciones y límites de alcance
+
+- El lint de API tiene información de tipos y está respaldado por Prettier; el Prettier de API usa comillas simples y comas finales.
+- Web admite el alias `@/*` para `src/*`; los alias de shadcn y la configuración de componentes están en `apps/web/components.json`.
+- No afirmes que autenticación, CRUD, CI, hooks, pruebas de web o paquetes compartidos están implementados; el código actual del producto es bootstrap más un healthcheck.
+- Conserva `.codegraph/` y `docs/CRUD_PLAN.md`, que ya estaban sin seguimiento; no forman parte de cambios no relacionados.
