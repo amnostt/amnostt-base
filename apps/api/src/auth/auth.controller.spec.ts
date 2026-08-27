@@ -143,4 +143,16 @@ describe('AuthController', () => {
       maxAge: 604800000,
     });
   });
+
+  it('should return the authenticated currentUser', () => {
+    const currentUser = {
+      id: 'user-id',
+      email: 'member@example.com',
+      name: 'Member User',
+      role: 'Member',
+      permissions: ['tasks:read:own'],
+    };
+
+    expect(controller.me(currentUser)).toEqual({ currentUser });
+  });
 });

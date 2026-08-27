@@ -1,15 +1,19 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
   Res,
+  UseGuards,
 } from '@nestjs/common';
+import { AuthGuard } from './auth.guard';
+import { CurrentUser as CurrentUserDecorator } from './current-user.decorator';
 import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
 import { AuthService } from './auth.service';
-import { CurrentUser } from './auth.types';
+import type { CurrentUser } from './auth.types';
 import { LoginDto } from './dto/login.dto';
 
 @Controller('auth')
@@ -59,6 +63,14 @@ export class AuthController {
       accessToken,
       currentUser,
     };
+  }
+
+  @Get('me')
+  @UseGuards(AuthGuard)
+  me(@CurrentUserDecorator() currentUser: CurrentUser): {
+    currentUser: CurrentUser;
+  } {
+    return { currentUser };
   }
 
   private getBoolean(configService: ConfigService, name: string): boolean {

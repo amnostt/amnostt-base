@@ -4,7 +4,7 @@ import * as argon2 from 'argon2';
 import { PrismaService } from '../prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { AuthTokenService } from './auth-token.service';
-import { LoginResult } from './auth.types';
+import { CurrentUser, LoginResult } from './auth.types';
 
 const DUMMY_PASSWORD_HASH =
   '$argon2id$v=19$m=65536,p=4,t=3$KsXskZkI6lPb8AGNd7SJdw$WVLMcRB1YjbEIUMKNt0NIcOp38qJhHmPuCRyBX0JGV8';
@@ -75,6 +75,54 @@ export class AuthService {
           .map(({ permission }) => permission.code)
           .sort(),
       },
+    };
+  }
+
+  async getCurrentUser(
+    userId: string,
+    sessionId: string,
+  ): Promise<CurrentUser> {
+    const session = await this.prisma.session.findFirst({
+      where: {
+        id: sessionId,
+        userId,
+        revokedAt: null,
+        expiresAt: {
+          gt: new Date(),
+        },
+        user: {
+          isActive: true,
+        },
+      },
+      include: {
+        user: {
+          include: {
+            role: {
+              include: {
+                rolePermissions: {
+                  include: {
+                    permission: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!session) {
+      throw new UnauthorizedException('Invalid session');
+    }
+
+    return {
+      id: session.user.id,
+      email: session.user.email,
+      name: session.user.name,
+      role: session.user.role.name,
+      permissions: session.user.role.rolePermissions
+        .map(({ permission }) => permission.code)
+        .sort(),
     };
   }
 }

@@ -7,6 +7,7 @@ import { AuthTokenPair } from './auth.types';
 
 describe('AuthService', () => {
   const findUniqueUser = jest.fn();
+  const findFirstSession = jest.fn();
   const createSession = jest.fn();
   const signTokenPair = jest.fn();
   const hashRefreshToken = jest.fn();
@@ -18,6 +19,7 @@ describe('AuthService', () => {
       findUnique: findUniqueUser,
     },
     session: {
+      findFirst: findFirstSession,
       create: createSession,
     },
   } as unknown as PrismaService;
@@ -200,5 +202,77 @@ describe('AuthService', () => {
         expiresAt,
       },
     });
+  });
+
+  it('should resolve currentUser from an active session and current permissions', async () => {
+    findFirstSession.mockResolvedValue({
+      user: {
+        id: 'user-id',
+        email: 'member@example.com',
+        name: 'Member User',
+        role: {
+          name: 'Member',
+          rolePermissions: [
+            {
+              permission: {
+                code: 'tasks:read:own',
+              },
+            },
+            {
+              permission: {
+                code: 'tasks:create:own',
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    await expect(
+      service.getCurrentUser('user-id', 'session-id'),
+    ).resolves.toEqual({
+      id: 'user-id',
+      email: 'member@example.com',
+      name: 'Member User',
+      role: 'Member',
+      permissions: ['tasks:create:own', 'tasks:read:own'],
+    });
+
+    expect(findFirstSession).toHaveBeenCalledWith({
+      where: {
+        id: 'session-id',
+        userId: 'user-id',
+        revokedAt: null,
+        expiresAt: {
+          gt: expect.any(Date) as Date,
+        },
+        user: {
+          isActive: true,
+        },
+      },
+      include: {
+        user: {
+          include: {
+            role: {
+              include: {
+                rolePermissions: {
+                  include: {
+                    permission: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it('should reject an invalid, expired, revoked, or inactive session', async () => {
+    findFirstSession.mockResolvedValue(null);
+
+    await expect(
+      service.getCurrentUser('user-id', 'session-id'),
+    ).rejects.toThrow(new UnauthorizedException('Invalid session'));
   });
 });

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { AuthTokenPair, AuthTokenPayload } from './auth.types';
@@ -68,6 +68,28 @@ export class AuthTokenService {
     };
   }
 
+  async verifyAccessToken(accessToken: string): Promise<AuthTokenPayload> {
+    let payload: unknown;
+
+    try {
+      payload = await this.jwtService.verifyAsync<Record<string, unknown>>(
+        accessToken,
+        {
+          algorithms: ['HS256'],
+          secret: this.accessSecret,
+        },
+      );
+    } catch {
+      throw new UnauthorizedException('Invalid access token');
+    }
+
+    if (!this.isAccessTokenPayload(payload)) {
+      throw new UnauthorizedException('Invalid access token');
+    }
+
+    return payload;
+  }
+
   hashRefreshToken(refreshToken: string): string {
     return createHash('sha256').update(refreshToken).digest('hex');
   }
@@ -94,5 +116,21 @@ export class AuthTokenService {
     if (Buffer.byteLength(secret, 'utf8') < 32) {
       throw new Error(`JWT ${type} secret must contain at least 32 bytes`);
     }
+  }
+
+  private isAccessTokenPayload(payload: unknown): payload is AuthTokenPayload {
+    if (typeof payload !== 'object' || payload === null) {
+      return false;
+    }
+
+    const candidate = payload as Record<string, unknown>;
+
+    return (
+      typeof candidate.sub === 'string' &&
+      candidate.sub.trim().length > 0 &&
+      typeof candidate.sid === 'string' &&
+      candidate.sid.trim().length > 0 &&
+      candidate.type === 'access'
+    );
   }
 }

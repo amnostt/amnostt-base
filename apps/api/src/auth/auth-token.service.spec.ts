@@ -4,6 +4,7 @@ import { AuthTokenService } from './auth-token.service';
 
 describe('AuthTokenService', () => {
   const signAsync = jest.fn();
+  const verifyAsync = jest.fn();
   const accessSecret = 'a'.repeat(32);
   const refreshSecret = 'b'.repeat(32);
   const config = {
@@ -15,6 +16,7 @@ describe('AuthTokenService', () => {
 
   const jwtService = {
     signAsync,
+    verifyAsync,
   } as unknown as JwtService;
 
   const configService = {
@@ -25,6 +27,7 @@ describe('AuthTokenService', () => {
 
   beforeEach(() => {
     signAsync.mockReset();
+    verifyAsync.mockReset();
   });
 
   it('should sign access and refresh tokens with separate secrets', async () => {
@@ -65,6 +68,60 @@ describe('AuthTokenService', () => {
         secret: refreshSecret,
         expiresIn: 604800,
       },
+    );
+  });
+
+  it('should verify and return a valid access token payload', async () => {
+    const payload = {
+      sub: 'user-id',
+      sid: 'session-id',
+      type: 'access' as const,
+    };
+
+    verifyAsync.mockResolvedValue(payload);
+
+    await expect(service.verifyAccessToken('access-token')).resolves.toEqual(
+      payload,
+    );
+
+    expect(verifyAsync).toHaveBeenCalledWith('access-token', {
+      algorithms: ['HS256'],
+      secret: accessSecret,
+    });
+  });
+
+  it('should reject a refresh token used as an access token', async () => {
+    verifyAsync.mockResolvedValue({
+      sub: 'user-id',
+      sid: 'session-id',
+      type: 'refresh',
+    });
+
+    await expect(service.verifyAccessToken('refresh-token')).rejects.toThrow(
+      'Invalid access token',
+    );
+  });
+
+  it.each([
+    null,
+    {},
+    { sid: 'session-id', type: 'access' },
+    { sub: 'user-id', type: 'access' },
+    { sub: ' ', sid: 'session-id', type: 'access' },
+    { sub: 'user-id', sid: 'session-id', type: 'refresh' },
+  ])('should reject a semantically invalid access payload', async (payload) => {
+    verifyAsync.mockResolvedValue(payload);
+
+    await expect(service.verifyAccessToken('access-token')).rejects.toThrow(
+      'Invalid access token',
+    );
+  });
+
+  it('should normalize JWT verification failures', async () => {
+    verifyAsync.mockRejectedValue(new Error('signature mismatch'));
+
+    await expect(service.verifyAccessToken('access-token')).rejects.toThrow(
+      'Invalid access token',
     );
   });
 
