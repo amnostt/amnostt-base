@@ -75,6 +75,24 @@ describe('SessionController', () => {
     expect(controller.getSnapshot()).toEqual({ status: 'unauthenticated' })
   })
 
+  it('does not let an older rejected login erase a newer authenticated session', async () => {
+    let rejectOldLogin!: (error: Error) => void
+    const auth = api({
+      login: vi.fn()
+        .mockReturnValueOnce(new Promise((_, reject) => { rejectOldLogin = reject }))
+        .mockResolvedValueOnce({ accessToken: 'new-token', currentUser: user }),
+    })
+    const controller = createSessionController(auth)
+
+    const oldLogin = controller.login({ email: 'old@example.com', password: 'wrong' })
+    await controller.logout()
+    await controller.login({ email: 'new@example.com', password: 'secret' })
+    rejectOldLogin(new Error('invalid credentials'))
+
+    await expect(oldLogin).rejects.toThrow(ApiError)
+    expect(controller.getSnapshot()).toEqual({ status: 'authenticated', user })
+  })
+
   it('shows session-expired only for a post-auth refresh failure and never uses an empty token', async () => {
     const auth = api({ refresh: vi.fn().mockRejectedValue(new Error('expired')) })
     const controller = createSessionController(auth, async <T>(path: string) => { void path; throw new ApiError(401) as T })

@@ -47,7 +47,7 @@ export function createSessionController(auth: AuthApi, request: Requester = defa
       currentUser = result.currentUser
       publish({ status: 'authenticated', user: result.currentUser })
     } catch {
-      publish({ status: 'unauthenticated' })
+      if (loginEpoch === epoch) publish({ status: 'unauthenticated' })
       throw new ApiError(0)
     }
   }

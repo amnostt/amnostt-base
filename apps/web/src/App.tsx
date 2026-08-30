@@ -1,44 +1,15 @@
-import { useEffect, useState } from 'react'
-import { Button } from '@/components/ui/button'
-
-const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api'
+import { useEffect } from 'react'
+import { AuthenticatedShell } from './components/auth/authenticated-shell'
+import { LoginForm } from './components/auth/login-form'
+import { SessionLoading } from './components/auth/session-loading'
+import { useSession } from './components/auth/session-provider'
 
 function App() {
-  const [count, setCount] = useState(0)
-  const [apiStatus, setApiStatus] = useState('checking')
-
-  useEffect(() => {
-    fetch(`${apiUrl}/health`)
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error('Health check failed')
-        }
-
-        setApiStatus('online')
-      })
-      .catch(() => {
-        setApiStatus('offline')
-      })
-  }, [])
-
-  return (
-    <main className="grid min-h-screen place-content-center gap-4 p-8 text-center">
-      <h1 className="text-3xl font-semibold">Amnostt</h1>
-
-      <p className="text-muted-foreground">
-        React application is running.
-      </p>
-
-      <p>API status: {apiStatus}</p>
-
-      <Button
-        type="button"
-        onClick={() => setCount((value) => value + 1)}
-      >
-        Count: {count}
-      </Button>
-    </main>
-  )
+  const { snapshot, bootstrap } = useSession()
+  useEffect(() => { void bootstrap() }, [bootstrap])
+  if (snapshot.status === 'bootstrap-loading' || snapshot.status === 'request-refreshing' || snapshot.status === 'logout-pending') return <SessionLoading />
+  if (snapshot.status === 'authenticated') return <AuthenticatedShell />
+  return <LoginForm expired={snapshot.status === 'unauthenticated' && snapshot.notice === 'session-expired'} />
 }
 
 export default App
