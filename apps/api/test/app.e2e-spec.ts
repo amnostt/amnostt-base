@@ -1,7 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
-import request from 'supertest';
+import request, { Response } from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { configureApp } from './../src/app.setup';
@@ -10,6 +10,11 @@ import type { CurrentUser } from './../src/auth/auth.types';
 interface LoginResponseBody {
   accessToken: string;
   currentUser: CurrentUser;
+}
+
+interface LoginSession {
+  accessToken: string;
+  refreshCookie: string;
 }
 
 describe('API (e2e)', () => {
@@ -21,6 +26,53 @@ describe('API (e2e)', () => {
   let refreshCookie: string | undefined;
   let cookieSecure: boolean;
   let refreshTtlSeconds: number;
+
+  function getRefreshCookie(response: Response): string {
+    const setCookieHeaders = response.headers['set-cookie'] as
+      string[] | undefined;
+    const refreshCookieHeader = setCookieHeaders?.find((cookie) =>
+      cookie.startsWith('refresh_token='),
+    );
+
+    expect(refreshCookieHeader).toEqual(expect.any(String));
+    return refreshCookieHeader!;
+  }
+
+  async function loginSession(): Promise<LoginSession> {
+    const configService = app.get(ConfigService);
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({
+        email: 'member@example.com',
+        password: configService.getOrThrow<string>('SEED_MEMBER_PASSWORD'),
+      })
+      .expect(200);
+
+    return {
+      accessToken: (response.body as LoginResponseBody).accessToken,
+      refreshCookie: getRefreshCookie(response),
+    };
+  }
+
+  function expectClearedRefreshCookie(response: Response): void {
+    const setCookieHeaders = response.headers['set-cookie'] as
+      string[] | undefined;
+    const refreshCookieHeader = setCookieHeaders?.find((cookie) =>
+      cookie.startsWith('refresh_token='),
+    );
+
+    expect(refreshCookieHeader).toEqual(expect.any(String));
+    expect(refreshCookieHeader).toContain('Path=/api/auth');
+    expect(refreshCookieHeader).toContain('HttpOnly');
+    expect(refreshCookieHeader).toContain(
+      'Expires=Thu, 01 Jan 1970 00:00:00 GMT',
+    );
+  }
+
+  function getErrorMessage(response: Response): string {
+    const responseBody = response.body as unknown as { message: string };
+    return responseBody.message;
+  }
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -168,6 +220,116 @@ describe('API (e2e)', () => {
         message: 'Authentication required',
         error: 'Unauthorized',
       });
+  });
+
+  it('rotates a valid refresh token and returns only a new access token', async () => {
+    const session = await loginSession();
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/refresh')
+      .set('Cookie', session.refreshCookie)
+      .expect(200);
+
+    const responseBody = response.body as unknown as {
+      accessToken: unknown;
+      currentUser?: unknown;
+    };
+    expect(typeof responseBody.accessToken).toBe('string');
+    expect(responseBody.currentUser).toBeUndefined();
+
+    const replacementCookie = getRefreshCookie(response);
+    expect(replacementCookie).toContain('Path=/api/auth');
+    expect(replacementCookie).toContain('HttpOnly');
+    expect(replacementCookie).toContain('SameSite=Strict');
+    expect(replacementCookie).toContain(`Max-Age=${refreshTtlSeconds}`);
+  });
+
+  it('rejects reuse of the old refresh token and revokes the whole session', async () => {
+    const session = await loginSession();
+    const rotationResponse = await request(app.getHttpServer())
+      .post('/api/auth/refresh')
+      .set('Cookie', session.refreshCookie)
+      .expect(200);
+    const replacementCookie = getRefreshCookie(rotationResponse);
+
+    const reuseResponse = await request(app.getHttpServer())
+      .post('/api/auth/refresh')
+      .set('Cookie', session.refreshCookie)
+      .expect(401);
+
+    expect(reuseResponse.body).toEqual({
+      statusCode: 401,
+      message: 'Invalid refresh token',
+      error: 'Unauthorized',
+    });
+    expectClearedRefreshCookie(reuseResponse);
+
+    const currentTokenResponse = await request(app.getHttpServer())
+      .post('/api/auth/refresh')
+      .set('Cookie', replacementCookie)
+      .expect(401);
+
+    expect(getErrorMessage(currentTokenResponse)).toBe('Invalid refresh token');
+    expectClearedRefreshCookie(currentTokenResponse);
+  });
+
+  it('allows only one concurrent refresh to rotate the same token', async () => {
+    const session = await loginSession();
+    const responses = await Promise.all([
+      request(app.getHttpServer())
+        .post('/api/auth/refresh')
+        .set('Cookie', session.refreshCookie),
+      request(app.getHttpServer())
+        .post('/api/auth/refresh')
+        .set('Cookie', session.refreshCookie),
+    ]);
+
+    expect(responses.map(({ status }) => status).sort()).toEqual([200, 401]);
+  });
+
+  it('logs out without an access token, revokes the session, and clears the cookie', async () => {
+    const session = await loginSession();
+    const logoutResponse = await request(app.getHttpServer())
+      .post('/api/auth/logout')
+      .set('Cookie', session.refreshCookie)
+      .expect(204);
+
+    expect(logoutResponse.text).toBe('');
+    expectClearedRefreshCookie(logoutResponse);
+
+    await request(app.getHttpServer())
+      .post('/api/auth/refresh')
+      .set('Cookie', session.refreshCookie)
+      .expect(401);
+  });
+
+  it('makes repeated logout idempotent and clears an absent or malformed cookie', async () => {
+    const session = await loginSession();
+    const firstLogout = await request(app.getHttpServer())
+      .post('/api/auth/logout')
+      .set('Cookie', session.refreshCookie)
+      .expect(204);
+    expectClearedRefreshCookie(firstLogout);
+
+    const repeatedLogout = await request(app.getHttpServer())
+      .post('/api/auth/logout')
+      .set('Cookie', session.refreshCookie)
+      .expect(204);
+    expectClearedRefreshCookie(repeatedLogout);
+
+    const absentCookieResponse = await request(app.getHttpServer())
+      .post('/api/auth/refresh')
+      .expect(401);
+    expect(getErrorMessage(absentCookieResponse)).toBe('Invalid refresh token');
+    expectClearedRefreshCookie(absentCookieResponse);
+
+    const malformedCookieResponse = await request(app.getHttpServer())
+      .post('/api/auth/refresh')
+      .set('Cookie', 'refresh_token=malformed-token')
+      .expect(401);
+    expect(getErrorMessage(malformedCookieResponse)).toBe(
+      'Invalid refresh token',
+    );
+    expectClearedRefreshCookie(malformedCookieResponse);
   });
 
   afterAll(async () => {

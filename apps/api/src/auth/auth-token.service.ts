@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
@@ -59,6 +59,7 @@ export class AuthTokenService {
         algorithm: 'HS256',
         secret: this.refreshSecret,
         expiresIn: this.refreshTtlSeconds,
+        jwtid: randomUUID(),
       }),
     ]);
 
@@ -85,6 +86,28 @@ export class AuthTokenService {
 
     if (!this.isAccessTokenPayload(payload)) {
       throw new UnauthorizedException('Invalid access token');
+    }
+
+    return payload;
+  }
+
+  async verifyRefreshToken(refreshToken: string): Promise<AuthTokenPayload> {
+    let payload: unknown;
+
+    try {
+      payload = await this.jwtService.verifyAsync<Record<string, unknown>>(
+        refreshToken,
+        {
+          algorithms: ['HS256'],
+          secret: this.refreshSecret,
+        },
+      );
+    } catch {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    if (!this.isRefreshTokenPayload(payload)) {
+      throw new UnauthorizedException('Invalid refresh token');
     }
 
     return payload;
@@ -131,6 +154,28 @@ export class AuthTokenService {
       typeof candidate.sid === 'string' &&
       candidate.sid.trim().length > 0 &&
       candidate.type === 'access'
+    );
+  }
+
+  private isRefreshTokenPayload(
+    payload: unknown,
+  ): payload is AuthTokenPayload & { exp: number } {
+    if (typeof payload !== 'object' || payload === null) {
+      return false;
+    }
+
+    const candidate = payload as Record<string, unknown>;
+    const nowInSeconds = Math.floor(Date.now() / 1000);
+
+    return (
+      typeof candidate.sub === 'string' &&
+      candidate.sub.trim().length > 0 &&
+      typeof candidate.sid === 'string' &&
+      candidate.sid.trim().length > 0 &&
+      candidate.type === 'refresh' &&
+      typeof candidate.exp === 'number' &&
+      Number.isFinite(candidate.exp) &&
+      candidate.exp > nowInSeconds
     );
   }
 }

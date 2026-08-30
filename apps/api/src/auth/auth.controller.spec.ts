@@ -1,14 +1,19 @@
 import { ConfigService } from '@nestjs/config';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 
 describe('AuthController', () => {
   const login = jest.fn();
+  const refresh = jest.fn();
+  const logout = jest.fn();
   const cookie = jest.fn();
+  const clearCookie = jest.fn();
 
   const authService = {
     login,
+    refresh,
+    logout,
   } as unknown as AuthService;
 
   const configService = {
@@ -31,6 +36,7 @@ describe('AuthController', () => {
 
   const response = {
     cookie,
+    clearCookie,
   } as unknown as Response;
 
   const controller = new AuthController(authService, configService);
@@ -142,6 +148,71 @@ describe('AuthController', () => {
       path: '/api/auth',
       maxAge: 604800000,
     });
+  });
+
+  it('should rotate the refresh cookie and return only a new access token', async () => {
+    refresh.mockResolvedValue({
+      accessToken: 'new-access-token',
+      refreshToken: 'new-refresh-token',
+    });
+
+    await expect(
+      controller.refresh(
+        { headers: { cookie: 'refresh_token=old-refresh-token' } } as Request,
+        response,
+      ),
+    ).resolves.toEqual({ accessToken: 'new-access-token' });
+
+    expect(refresh).toHaveBeenCalledWith('old-refresh-token');
+    expect(cookie).toHaveBeenCalledWith('refresh_token', 'new-refresh-token', {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'strict',
+      path: '/api/auth',
+      maxAge: 604800000,
+    });
+  });
+
+  it('should reject refresh failures and clear the cookie', async () => {
+    refresh.mockRejectedValue(new Error('invalid refresh token'));
+
+    await expect(
+      controller.refresh(
+        {
+          headers: { cookie: 'refresh_token=invalid-refresh-token' },
+        } as Request,
+        response,
+      ),
+    ).rejects.toThrow('Invalid refresh token');
+
+    expect(clearCookie).toHaveBeenCalledWith('refresh_token', {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'strict',
+      path: '/api/auth',
+    });
+  });
+
+  it('should make logout idempotent and clear the cookie', async () => {
+    await expect(
+      controller.logout(
+        { headers: { cookie: 'refresh_token=refresh-token' } } as Request,
+        response,
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(logout).toHaveBeenCalledWith('refresh-token');
+    expect(clearCookie).toHaveBeenCalledWith('refresh_token', {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'strict',
+      path: '/api/auth',
+    });
+
+    await expect(
+      controller.logout({ headers: {} } as Request, response),
+    ).resolves.toBeUndefined();
+    expect(logout).toHaveBeenCalledWith(undefined);
   });
 
   it('should return the authenticated currentUser', () => {

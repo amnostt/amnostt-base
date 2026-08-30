@@ -5,16 +5,21 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Req,
   Res,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from './auth.guard';
 import { CurrentUser as CurrentUserDecorator } from './current-user.decorator';
 import { ConfigService } from '@nestjs/config';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import type { CurrentUser } from './auth.types';
 import { LoginDto } from './dto/login.dto';
+
+const REFRESH_COOKIE_NAME = 'refresh_token';
+const REFRESH_COOKIE_PATH = '/api/auth';
 
 @Controller('auth')
 export class AuthController {
@@ -51,13 +56,7 @@ export class AuthController {
     const { accessToken, refreshToken, currentUser } =
       await this.authService.login(loginDto);
 
-    response.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: this.cookieSecure,
-      sameSite: 'strict',
-      path: '/api/auth',
-      maxAge: this.refreshTtlSeconds * 1000,
-    });
+    this.setRefreshCookie(response, refreshToken);
 
     return {
       accessToken,
@@ -71,6 +70,86 @@ export class AuthController {
     currentUser: CurrentUser;
   } {
     return { currentUser };
+  }
+
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  async refresh(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<{ accessToken: string }> {
+    try {
+      const { accessToken, refreshToken } = await this.authService.refresh(
+        this.getRefreshToken(request),
+      );
+
+      this.setRefreshCookie(response, refreshToken);
+      return { accessToken };
+    } catch {
+      this.clearRefreshCookie(response);
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+  }
+
+  @Post('logout')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async logout(
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    await this.authService.logout(this.getRefreshToken(request));
+    this.clearRefreshCookie(response);
+  }
+
+  private setRefreshCookie(response: Response, refreshToken: string): void {
+    response.cookie(REFRESH_COOKIE_NAME, refreshToken, {
+      httpOnly: true,
+      secure: this.cookieSecure,
+      sameSite: 'strict',
+      path: REFRESH_COOKIE_PATH,
+      maxAge: this.refreshTtlSeconds * 1000,
+    });
+  }
+
+  private clearRefreshCookie(response: Response): void {
+    response.clearCookie(REFRESH_COOKIE_NAME, {
+      httpOnly: true,
+      secure: this.cookieSecure,
+      sameSite: 'strict',
+      path: REFRESH_COOKIE_PATH,
+    });
+  }
+
+  private getRefreshToken(request: Request): string | undefined {
+    const cookieHeader = request.headers.cookie;
+    if (typeof cookieHeader !== 'string') {
+      return undefined;
+    }
+
+    for (const cookie of cookieHeader.split(';')) {
+      const separatorIndex = cookie.indexOf('=');
+      if (separatorIndex < 0) {
+        continue;
+      }
+
+      const name = cookie.slice(0, separatorIndex).trim();
+      if (name !== REFRESH_COOKIE_NAME) {
+        continue;
+      }
+
+      const value = cookie.slice(separatorIndex + 1).trim();
+      if (!value) {
+        return undefined;
+      }
+
+      try {
+        return decodeURIComponent(value);
+      } catch {
+        return undefined;
+      }
+    }
+
+    return undefined;
   }
 
   private getBoolean(configService: ConfigService, name: string): boolean {

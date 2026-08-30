@@ -63,12 +63,18 @@ describe('AuthTokenService', () => {
         sid: 'session-id',
         type: 'refresh',
       },
-      {
+      expect.objectContaining({
         algorithm: 'HS256',
         secret: refreshSecret,
         expiresIn: 604800,
-      },
+      }),
     );
+
+    const signCalls = signAsync.mock.calls as unknown[][];
+    const refreshOptions = signCalls[1]?.[1] as {
+      jwtid?: unknown;
+    };
+    expect(typeof refreshOptions.jwtid).toBe('string');
   });
 
   it('should verify and return a valid access token payload', async () => {
@@ -122,6 +128,59 @@ describe('AuthTokenService', () => {
 
     await expect(service.verifyAccessToken('access-token')).rejects.toThrow(
       'Invalid access token',
+    );
+  });
+
+  it('should verify refresh tokens with the refresh secret and HS256', async () => {
+    const payload = {
+      sub: 'user-id',
+      sid: 'session-id',
+      type: 'refresh' as const,
+      exp: Math.floor(Date.now() / 1000) + 60,
+    };
+
+    verifyAsync.mockResolvedValue(payload);
+
+    await expect(service.verifyRefreshToken('refresh-token')).resolves.toEqual(
+      payload,
+    );
+
+    expect(verifyAsync).toHaveBeenCalledWith('refresh-token', {
+      algorithms: ['HS256'],
+      secret: refreshSecret,
+    });
+  });
+
+  it.each([
+    null,
+    {},
+    { sid: 'session-id', type: 'refresh', exp: 1 },
+    { sub: 'user-id', type: 'refresh', exp: 1 },
+    { sub: ' ', sid: 'session-id', type: 'refresh', exp: 1 },
+    { sub: 'user-id', sid: 'session-id', type: 'access', exp: 1 },
+    { sub: 'user-id', sid: 'session-id', type: 'refresh' },
+    {
+      sub: 'user-id',
+      sid: 'session-id',
+      type: 'refresh',
+      exp: Math.floor(Date.now() / 1000),
+    },
+  ])(
+    'should reject a semantically invalid refresh payload',
+    async (payload) => {
+      verifyAsync.mockResolvedValue(payload);
+
+      await expect(service.verifyRefreshToken('refresh-token')).rejects.toThrow(
+        'Invalid refresh token',
+      );
+    },
+  );
+
+  it('should normalize refresh JWT verification failures', async () => {
+    verifyAsync.mockRejectedValue(new Error('signature mismatch'));
+
+    await expect(service.verifyRefreshToken('refresh-token')).rejects.toThrow(
+      'Invalid refresh token',
     );
   });
 

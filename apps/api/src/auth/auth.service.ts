@@ -1,10 +1,15 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { AuthTokenService } from './auth-token.service';
-import { CurrentUser, LoginResult } from './auth.types';
+import {
+  AuthTokenPair,
+  AuthTokenPayload,
+  CurrentUser,
+  LoginResult,
+} from './auth.types';
 
 const DUMMY_PASSWORD_HASH =
   '$argon2id$v=19$m=65536,p=4,t=3$KsXskZkI6lPb8AGNd7SJdw$WVLMcRB1YjbEIUMKNt0NIcOp38qJhHmPuCRyBX0JGV8';
@@ -124,5 +129,128 @@ export class AuthService {
         .map(({ permission }) => permission.code)
         .sort(),
     };
+  }
+
+  async refresh(refreshToken: string | undefined): Promise<AuthTokenPair> {
+    if (!refreshToken) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    const payload =
+      await this.authTokenService.verifyRefreshToken(refreshToken);
+    const refreshTokenHash =
+      this.authTokenService.hashRefreshToken(refreshToken);
+    const now = new Date();
+    const session = await this.prisma.session.findUnique({
+      where: {
+        id: payload.sid,
+      },
+      include: {
+        user: {
+          select: {
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    if (
+      !session ||
+      session.userId !== payload.sub ||
+      session.revokedAt !== null ||
+      session.expiresAt <= now ||
+      !session.user.isActive
+    ) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    if (
+      !this.matchesRefreshTokenHash(session.refreshTokenHash, refreshTokenHash)
+    ) {
+      await this.revokeSession(payload.sid, payload.sub);
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    const tokenPair = await this.authTokenService.signTokenPair(
+      payload.sub,
+      payload.sid,
+    );
+    const replacementHash = this.authTokenService.hashRefreshToken(
+      tokenPair.refreshToken,
+    );
+    const replacementExpiresAt =
+      this.authTokenService.getRefreshTokenExpiresAt(now);
+
+    const rotation = await this.prisma.$transaction((transaction) =>
+      transaction.session.updateMany({
+        where: {
+          id: payload.sid,
+          userId: payload.sub,
+          refreshTokenHash,
+          revokedAt: null,
+          expiresAt: {
+            gt: now,
+          },
+          user: {
+            isActive: true,
+          },
+        },
+        data: {
+          refreshTokenHash: replacementHash,
+          expiresAt: replacementExpiresAt,
+        },
+      }),
+    );
+
+    if (rotation.count !== 1) {
+      await this.revokeSession(payload.sid, payload.sub);
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    return tokenPair;
+  }
+
+  async logout(refreshToken: string | undefined): Promise<void> {
+    if (!refreshToken) {
+      return;
+    }
+
+    let payload: AuthTokenPayload;
+    try {
+      payload = await this.authTokenService.verifyRefreshToken(refreshToken);
+    } catch {
+      return;
+    }
+
+    await this.revokeSession(payload.sid, payload.sub);
+  }
+
+  private async revokeSession(
+    sessionId: string,
+    userId: string,
+  ): Promise<void> {
+    await this.prisma.session.updateMany({
+      where: {
+        id: sessionId,
+        userId,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: new Date(),
+      },
+    });
+  }
+
+  private matchesRefreshTokenHash(
+    storedHash: string,
+    receivedHash: string,
+  ): boolean {
+    const storedBytes = Buffer.from(storedHash, 'utf8');
+    const receivedBytes = Buffer.from(receivedHash, 'utf8');
+
+    return (
+      storedBytes.length === receivedBytes.length &&
+      timingSafeEqual(storedBytes, receivedBytes)
+    );
   }
 }

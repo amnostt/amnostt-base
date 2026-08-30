@@ -8,7 +8,10 @@ import { AuthTokenPair } from './auth.types';
 describe('AuthService', () => {
   const findUniqueUser = jest.fn();
   const findFirstSession = jest.fn();
+  const findUniqueSession = jest.fn();
   const createSession = jest.fn();
+  const updateManySession = jest.fn();
+  const runTransaction = jest.fn();
   const signTokenPair = jest.fn();
   const hashRefreshToken = jest.fn();
   const getRefreshTokenExpiresAt = jest.fn();
@@ -20,21 +23,37 @@ describe('AuthService', () => {
     },
     session: {
       findFirst: findFirstSession,
+      findUnique: findUniqueSession,
       create: createSession,
+      updateMany: updateManySession,
     },
+    $transaction: runTransaction,
   } as unknown as PrismaService;
 
   const authTokenService = {
     signTokenPair,
     hashRefreshToken,
     getRefreshTokenExpiresAt,
+    verifyRefreshToken: jest.fn(),
   } as unknown as AuthTokenService;
+
+  const verifyRefreshToken = (
+    authTokenService as unknown as { verifyRefreshToken: jest.Mock }
+  ).verifyRefreshToken;
 
   const service = new AuthService(prisma, authTokenService);
 
   beforeEach(() => {
     jest.clearAllMocks();
     signedSessionId = '';
+    runTransaction.mockImplementation(
+      async (
+        callback: (transaction: {
+          session: { updateMany: jest.Mock };
+        }) => Promise<unknown>,
+      ): Promise<unknown> =>
+        callback({ session: { updateMany: updateManySession } }),
+    );
   });
 
   it('should reject an unknown email without creating a session', async () => {
@@ -274,5 +293,169 @@ describe('AuthService', () => {
     await expect(
       service.getCurrentUser('user-id', 'session-id'),
     ).rejects.toThrow(new UnauthorizedException('Invalid session'));
+  });
+
+  describe('refresh', () => {
+    const currentSession = {
+      userId: 'user-id',
+      refreshTokenHash: 'stored-refresh-token-hash',
+      expiresAt: new Date('2099-01-01T00:00:00.000Z'),
+      revokedAt: null,
+      user: { isActive: true },
+    };
+
+    beforeEach(() => {
+      verifyRefreshToken.mockResolvedValue({
+        sub: 'user-id',
+        sid: 'session-id',
+        type: 'refresh',
+      });
+      hashRefreshToken.mockImplementation((token: string) =>
+        token === 'refresh-token'
+          ? 'stored-refresh-token-hash'
+          : 'replacement-refresh-token-hash',
+      );
+      findUniqueSession.mockResolvedValue(currentSession);
+      signTokenPair.mockResolvedValue({
+        accessToken: 'new-access-token',
+        refreshToken: 'new-refresh-token',
+      });
+      getRefreshTokenExpiresAt.mockReturnValue(
+        new Date('2099-01-08T00:00:00.000Z'),
+      );
+      updateManySession.mockResolvedValue({ count: 1 });
+    });
+
+    it('should rotate the refresh token and persist it with an atomic compare-and-update', async () => {
+      await expect(service.refresh('refresh-token')).resolves.toEqual({
+        accessToken: 'new-access-token',
+        refreshToken: 'new-refresh-token',
+      });
+
+      expect(verifyRefreshToken).toHaveBeenCalledWith('refresh-token');
+      expect(findUniqueSession).toHaveBeenCalledWith({
+        where: { id: 'session-id' },
+        include: { user: { select: { isActive: true } } },
+      });
+      expect(signTokenPair).toHaveBeenCalledWith('user-id', 'session-id');
+      expect(runTransaction).toHaveBeenCalled();
+      expect(updateManySession).toHaveBeenCalledWith({
+        where: {
+          id: 'session-id',
+          userId: 'user-id',
+          refreshTokenHash: 'stored-refresh-token-hash',
+          revokedAt: null,
+          expiresAt: { gt: expect.any(Date) as Date },
+          user: { isActive: true },
+        },
+        data: {
+          refreshTokenHash: 'replacement-refresh-token-hash',
+          expiresAt: new Date('2099-01-08T00:00:00.000Z'),
+        },
+      });
+    });
+
+    it('should revoke the session when a rotated token is reused', async () => {
+      findUniqueSession.mockResolvedValue({
+        ...currentSession,
+        refreshTokenHash: 'current-refresh-token-hash',
+      });
+      hashRefreshToken.mockReturnValue('old-refresh-token-hash');
+
+      await expect(service.refresh('old-refresh-token')).rejects.toThrow(
+        new UnauthorizedException('Invalid refresh token'),
+      );
+
+      expect(signTokenPair).not.toHaveBeenCalled();
+      expect(updateManySession).toHaveBeenCalledWith({
+        where: {
+          id: 'session-id',
+          userId: 'user-id',
+          revokedAt: null,
+        },
+        data: { revokedAt: expect.any(Date) as Date },
+      });
+    });
+
+    it('should revoke the session when an atomic rotation loses a race', async () => {
+      updateManySession
+        .mockResolvedValueOnce({ count: 0 })
+        .mockResolvedValueOnce({ count: 1 });
+
+      await expect(service.refresh('refresh-token')).rejects.toThrow(
+        new UnauthorizedException('Invalid refresh token'),
+      );
+
+      expect(updateManySession).toHaveBeenCalledTimes(2);
+    });
+
+    it.each([undefined, 'invalid-refresh-token'])(
+      'should reject a missing or invalid refresh credential',
+      async (token) => {
+        if (token === 'invalid-refresh-token') {
+          verifyRefreshToken.mockRejectedValue(
+            new UnauthorizedException('Invalid refresh token'),
+          );
+        }
+
+        await expect(service.refresh(token)).rejects.toThrow(
+          new UnauthorizedException('Invalid refresh token'),
+        );
+
+        expect(findUniqueSession).not.toHaveBeenCalled();
+        expect(signTokenPair).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      { ...currentSession, revokedAt: new Date() },
+      { ...currentSession, expiresAt: new Date('2000-01-01T00:00:00.000Z') },
+      { ...currentSession, user: { isActive: false } },
+      { ...currentSession, userId: 'another-user-id' },
+      null,
+    ])('should reject an inactive or wrong session', async (session) => {
+      findUniqueSession.mockResolvedValue(session);
+
+      await expect(service.refresh('refresh-token')).rejects.toThrow(
+        new UnauthorizedException('Invalid refresh token'),
+      );
+
+      expect(signTokenPair).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('logout', () => {
+    it('should revoke an identifiable session without requiring an access token', async () => {
+      verifyRefreshToken.mockResolvedValue({
+        sub: 'user-id',
+        sid: 'session-id',
+        type: 'refresh',
+      });
+      updateManySession.mockResolvedValue({ count: 1 });
+
+      await expect(service.logout('refresh-token')).resolves.toBeUndefined();
+
+      expect(updateManySession).toHaveBeenCalledWith({
+        where: {
+          id: 'session-id',
+          userId: 'user-id',
+          revokedAt: null,
+        },
+        data: { revokedAt: expect.any(Date) as Date },
+      });
+    });
+
+    it('should ignore missing or invalid credentials', async () => {
+      verifyRefreshToken.mockRejectedValue(
+        new UnauthorizedException('Invalid refresh token'),
+      );
+
+      await expect(service.logout(undefined)).resolves.toBeUndefined();
+      await expect(
+        service.logout('invalid-refresh-token'),
+      ).resolves.toBeUndefined();
+
+      expect(updateManySession).not.toHaveBeenCalled();
+    });
   });
 });
