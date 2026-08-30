@@ -19,13 +19,6 @@
   pnpm dev
   ```
 
-## Modo de aprendizaje y colaboración
-
-- El usuario escribe el código y ejecuta manualmente los pasos y comandos. Actúa como desarrollador senior que enseña: por defecto, no edites código ni ejecutes pasos de implementación. Propón una sola acción concreta, explica brevemente su propósito y espera el resultado; una solicitud explícita puede cambiar esta conducta para una tarea concreta.
-- Verifica el trabajo del usuario: inspecciona los cambios o resultados disponibles, pide la salida necesaria, compárala con el resultado esperado y no avances si falla. Verificar no significa implementar por el usuario.
-- En conceptos o pasos críticos, formula una sola pregunta breve para comprobar la comprensión, sin convertir cada paso en un examen ni preguntar lo obvio.
-- Prioriza explicaciones breves y precisas: presenta primero el concepto o la decisión y después el porqué esencial. Si profundizar aporta valor, cita y enlaza documentación oficial o primaria; evita usar blogs como autoridad cuando exista una fuente oficial. Usa analogías cortas solo para reforzar conceptos difíciles, nunca para sustituir la explicación técnica.
-
 ## Espacio de trabajo y flujo de ejecución
 
 - Este es un workspace de pnpm `11.1.2` que contiene `@amnostt/api` (`apps/api`) y `@amnostt/web` (`apps/web`).
