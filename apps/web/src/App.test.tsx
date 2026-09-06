@@ -2,27 +2,27 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
-import { SessionProvider } from './components/auth/session-provider'
-import { createSessionController } from './lib/session-controller'
-import type { AuthApi } from './lib/auth-api'
-import { ApiError } from './lib/api-client'
+import { SessionProvider } from './features/auth/components/session-provider'
+import { createSessionStore } from './features/auth/store/session-store'
+import type { AuthRepository } from './features/auth/domain/auth-repository'
+import { ApiError } from './core/http/api-client'
 
 const user = { id: '1', name: 'Ada', email: 'ada@example.com', role: 'Admin', permissions: [] }
-function auth(overrides: Partial<AuthApi> = {}): AuthApi {
-  return { login: vi.fn(), me: vi.fn().mockResolvedValue(user), refresh: vi.fn().mockResolvedValue({ accessToken: 'token' }), logout: vi.fn().mockResolvedValue(undefined), ...overrides }
+function auth(overrides: Partial<AuthRepository> = {}): AuthRepository {
+  return { login: vi.fn(), restore: vi.fn().mockResolvedValue({ accessToken: 'token', currentUser: user }), refresh: vi.fn().mockResolvedValue('token'), logout: vi.fn().mockResolvedValue(undefined), ...overrides }
 }
-function unauth(overrides: Partial<AuthApi> = {}): AuthApi {
-  return auth({ refresh: vi.fn().mockRejectedValue(new Error('no session')), ...overrides })
+function unauth(overrides: Partial<AuthRepository> = {}): AuthRepository {
+  return auth({ restore: vi.fn().mockRejectedValue(new Error('no session')), ...overrides })
 }
-function renderIntegration(api: AuthApi) {
-  const controller = createSessionController(api)
-  render(<SessionProvider controller={controller}><App /></SessionProvider>)
-  return controller
+function renderIntegration(api: AuthRepository) {
+  const store = createSessionStore(api)
+  render(<SessionProvider store={store}><App /></SessionProvider>)
+  return store
 }
-function renderWithRequest(api: AuthApi, request: <T>(path: string, init?: RequestInit) => Promise<T>) {
-  const controller = createSessionController(api, request)
-  render(<SessionProvider controller={controller}><App /></SessionProvider>)
-  return controller
+function renderWithRequest(api: AuthRepository, request: <T>(path: string, init?: RequestInit) => Promise<T>) {
+  const store = createSessionStore(api, request)
+  render(<SessionProvider store={store}><App /></SessionProvider>)
+  return store
 }
 afterEach(cleanup)
 
@@ -76,33 +76,33 @@ describe('App session integration', () => {
   })
 
   it('keeps the bootstrap loading surface visible while refresh is pending', async () => {
-    let finish!: (value: { accessToken: string }) => void
-    const api = auth({ refresh: vi.fn(() => new Promise<{ accessToken: string }>((resolve) => { finish = resolve })) })
+    let finish!: (value: { accessToken: string; currentUser: typeof user }) => void
+    const api = auth({ restore: vi.fn(() => new Promise<{ accessToken: string; currentUser: typeof user }>((resolve) => { finish = resolve })) })
     renderIntegration(api)
     expect(screen.getByRole('status')).toHaveTextContent('Loading session')
-    await waitFor(() => expect(api.refresh).toHaveBeenCalled())
-    finish({ accessToken: 'token' })
+    await waitFor(() => expect(api.restore).toHaveBeenCalled())
+    finish({ accessToken: 'token', currentUser: user })
     await waitFor(() => expect(screen.getByRole('heading', { name: /Welcome/ })).toBeInTheDocument())
   })
 
   it('gates protected content while an authenticated request refreshes', async () => {
-    let finish!: (value: { accessToken: string }) => void
+    let finish!: (value: string) => void
     const request = vi.fn().mockRejectedValueOnce(new ApiError(401))
-    const api = auth({ refresh: vi.fn().mockResolvedValueOnce({ accessToken: 'token' }).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve })) })
-    const controller = renderWithRequest(api, request)
+    const api = auth({ refresh: vi.fn(() => new Promise<string>((resolve) => { finish = resolve })) })
+    const store = renderWithRequest(api, request)
     await waitFor(() => expect(screen.getByRole('heading', { name: /Welcome/ })).toBeInTheDocument())
-    void controller.request('/protected')
+    void store.getState().request('/protected')
     await waitFor(() => expect(screen.getByRole('status')).toBeInTheDocument())
     expect(screen.queryByText(/Welcome/)).not.toBeInTheDocument()
-    finish({ accessToken: 'new-token' })
+    finish('new-token')
   })
 
   it('renders the session-expired notice after refresh fails', async () => {
     const request = vi.fn().mockRejectedValueOnce(new ApiError(401))
-    const api = auth({ refresh: vi.fn().mockResolvedValueOnce({ accessToken: 'token' }).mockRejectedValueOnce(new Error('expired')) })
-    const controller = renderWithRequest(api, request)
+    const api = auth({ refresh: vi.fn().mockRejectedValue(new Error('expired')) })
+    const store = renderWithRequest(api, request)
     await waitFor(() => expect(screen.getByText('Role: Admin')).toBeInTheDocument())
-    await expect(controller.request('/protected')).rejects.toBeDefined()
+    await expect(store.getState().request('/protected')).rejects.toBeDefined()
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('session expired'))
   })
 
@@ -126,8 +126,7 @@ describe('App session integration', () => {
     const api = auth()
     renderIntegration(api)
     await waitFor(() => expect(screen.getByRole('heading', { name: /Ada/ })).toBeInTheDocument())
-    expect(api.refresh).toHaveBeenCalledOnce()
-    expect(api.me).toHaveBeenCalledWith('token')
+    expect(api.restore).toHaveBeenCalledOnce()
   })
 
   it('shows no protected content while logout is pending, then returns to login', async () => {

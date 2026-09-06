@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
-import { AuthenticatedShell } from './components/auth/authenticated-shell'
-import { LoginForm } from './components/auth/login-form'
-import { SessionLoading } from './components/auth/session-loading'
-import { useSession } from './components/auth/session-provider'
+import { AuthenticatedShell } from './features/auth/components/authenticated-shell'
+import { LoginForm } from './features/auth/components/login-form'
+import { SessionLoading } from './features/auth/components/session-loading'
+import { useSession } from './features/auth/components/session-provider'
 
 function App() {
   const { snapshot, bootstrap } = useSession()
