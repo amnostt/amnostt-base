@@ -1,11 +1,11 @@
 import { useEffect } from 'react'
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router'
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useSearchParams } from 'react-router'
 import { AuthenticatedShell } from './features/auth/components/authenticated-shell'
 import { LoginForm } from './features/auth/components/login-form'
 import { SessionLoading } from './features/auth/components/session-loading'
 import { useSession } from './features/auth/components/session-provider'
 import { TaskListPage } from './features/tasks/task-list-page'
-import { getLoginRedirect } from './routing'
+import { getLoginRedirect, getSafeReturnPath } from './routing'
 
 function HomePage() {
   const { snapshot } = useSession()
@@ -28,8 +28,13 @@ function TaskRoute() {
   return canRead ? <TaskListPage /> : <ForbiddenPage />
 }
 
+function AuthenticatedLoginRedirect() {
+  const [searchParams] = useSearchParams()
+  return <Navigate to={getSafeReturnPath(searchParams.get('returnTo'))} replace />
+}
+
 function AuthenticatedRoutes() {
-  return <Routes><Route element={<AuthenticatedShell />}><Route path="/" element={<HomePage />} /><Route path="/tasks" element={<TaskRoute />} /><Route path="/403" element={<ForbiddenPage />} /><Route path="/login" element={<Navigate to="/" replace />} /><Route path="*" element={<NotFoundPage />} /></Route></Routes>
+  return <Routes><Route element={<AuthenticatedShell />}><Route path="/" element={<HomePage />} /><Route path="/tasks" element={<TaskRoute />} /><Route path="/403" element={<ForbiddenPage />} /><Route path="/login" element={<AuthenticatedLoginRedirect />} /><Route path="*" element={<NotFoundPage />} /></Route></Routes>
 }
 
 function AppRoutes() {

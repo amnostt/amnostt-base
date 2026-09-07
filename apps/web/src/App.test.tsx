@@ -183,4 +183,26 @@ describe('App session integration', () => {
     expect(await screen.findByRole('link', { name: 'Tasks' })).toBeInTheDocument()
     expect(await screen.findByText('No tasks yet.')).toBeInTheDocument()
   })
+
+  it('returns to the originally requested task route after login without a refresh', async () => {
+    window.history.pushState({}, '', '/tasks')
+    const ownReader = { ...user, permissions: ['tasks:read:own'] }
+    const api = unauth({ login: vi.fn().mockResolvedValue({ accessToken: 'login-token', currentUser: ownReader }) })
+    const requestResponse = vi.fn().mockResolvedValue({ data: [], meta: { page: 1, limit: 20, totalItems: 0, totalPages: 0 } })
+
+    renderWithResponse(api, requestResponse)
+
+    await screen.findByRole('heading', { name: 'Sign in' })
+    expect(window.location.pathname).toBe('/login')
+    expect(window.location.search).toBe('?returnTo=%2Ftasks')
+
+    const formUser = userEvent.setup()
+    await formUser.type(screen.getByLabelText('Email'), 'ada@example.com')
+    await formUser.type(screen.getByLabelText('Password'), 'secret')
+    await formUser.click(screen.getByRole('button', { name: 'Sign in' }))
+
+    expect(await screen.findByText('No tasks yet.')).toBeInTheDocument()
+    expect(screen.queryByText('Page not found.')).not.toBeInTheDocument()
+    expect(window.location.pathname).toBe('/tasks')
+  })
 })
