@@ -5,8 +5,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { AlertDialog } from '@/components/ui/alert-dialog'
 import { ApiError } from '../../core/http/api-client'
-import { createTask } from './task-repository'
-import type { TaskStatus } from './task-models'
+import { createTask, updateTask } from './task-repository'
+import type { Task, TaskStatus } from './task-models'
 
 type Requester = <T>(path: string, init?: RequestInit) => Promise<T>
 type FormField = 'title' | 'description' | 'dueDate'
@@ -16,6 +16,7 @@ export interface TaskFormProps {
   request: Requester
   onClose: () => void
   onSaved: () => void
+  task?: Task
 }
 
 const initialValues = {
@@ -25,13 +26,21 @@ const initialValues = {
   dueDate: '',
 }
 
-export function TaskForm({ request, onClose, onSaved }: TaskFormProps) {
-  const [values, setValues] = useState(initialValues)
+export function TaskForm({ request, onClose, onSaved, task }: TaskFormProps) {
+  const editing = Boolean(task)
+  const [values, setValues] = useState(() => task ? {
+    title: task.title,
+    description: task.description ?? '',
+    status: task.status,
+    dueDate: task.dueDate ?? '',
+  } : initialValues)
   const [errors, setErrors] = useState<FormErrors>({})
   const [generalError, setGeneralError] = useState<string>()
   const [saving, setSaving] = useState(false)
   const [confirmClose, setConfirmClose] = useState(false)
-  const dirty = values.title !== '' || values.description !== '' || values.dueDate !== '' || values.status !== 'pending'
+  const dirty = task
+    ? values.title !== task.title || values.description !== (task.description ?? '') || values.status !== task.status || values.dueDate !== (task.dueDate ?? '')
+    : values.title !== '' || values.description !== '' || values.dueDate !== '' || values.status !== 'pending'
 
   function updateValue(field: keyof typeof values, value: string) {
     setValues((current) => ({ ...current, [field]: value }))
@@ -60,18 +69,27 @@ export function TaskForm({ request, onClose, onSaved }: TaskFormProps) {
     setSaving(true)
     setGeneralError(undefined)
     try {
-      await createTask(request, {
-        title: values.title.trim(),
-        status: values.status,
-        ...(values.description ? { description: values.description } : {}),
-        ...(values.dueDate ? { dueDate: values.dueDate } : {}),
-      })
+      if (task) {
+        await updateTask(request, task.id, {
+          title: values.title.trim(),
+          description: values.description || null,
+          status: values.status,
+          dueDate: values.dueDate || null,
+        })
+      } else {
+        await createTask(request, {
+          title: values.title.trim(),
+          status: values.status,
+          ...(values.description ? { description: values.description } : {}),
+          ...(values.dueDate ? { dueDate: values.dueDate } : {}),
+        })
+      }
       onSaved()
     } catch (error) {
       if (error instanceof ApiError && error.details) {
         setErrors(Object.fromEntries(error.details.map((detail) => [detail.field, `Invalid ${detail.field}.`])) as FormErrors)
       }
-      setGeneralError(error instanceof Error ? error.message : 'Unable to create task.')
+      setGeneralError(error instanceof Error ? error.message : editing ? 'Unable to update task.' : 'Unable to create task.')
     } finally {
       setSaving(false)
     }
@@ -110,7 +128,7 @@ export function TaskForm({ request, onClose, onSaved }: TaskFormProps) {
         </div>
         {generalError && <p role="alert">{generalError}</p>}
         <div className="flex gap-2">
-          <Button type="submit" disabled={saving}>{saving ? 'Creating…' : 'Create task'}</Button>
+        <Button type="submit" disabled={saving}>{saving ? (editing ? 'Updating…' : 'Creating…') : (editing ? 'Update task' : 'Create task')}</Button>
           <Button type="button" variant="outline" onClick={requestClose} disabled={saving}>Close</Button>
         </div>
       </form>

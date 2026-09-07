@@ -7,6 +7,7 @@ import {
   getTaskCreateOwnerId,
   getTaskListScope,
   getTaskReadScope,
+  getTaskUpdateScope,
 } from './task-policy';
 import {
   escapeTaskSearch,
@@ -15,6 +16,7 @@ import {
 } from './task-query';
 import type { TaskQueryDto } from './dto/task-query.dto';
 import type { TaskCreateDto } from './dto/task-create.dto';
+import type { TaskUpdateDto } from './dto/task-update.dto';
 
 export interface TaskResponse {
   id: string;
@@ -106,6 +108,37 @@ export class TasksService {
         totalPages: totalItems ? Math.ceil(totalItems / query.limit) : 0,
       },
     };
+  }
+
+  async update(
+    currentUser: CurrentUser,
+    id: string,
+    taskDto: TaskUpdateDto,
+  ): Promise<TaskResponse> {
+    const task = await this.prisma.task.findFirst({
+      where: getTaskUpdateScope(currentUser, id),
+    });
+    if (!task) throw new NotFoundException('Task not found');
+
+    const updatedTask = await this.prisma.task.update({
+      where: { id: task.id },
+      data: {
+        ...(taskDto.title !== undefined ? { title: taskDto.title } : {}),
+        ...(taskDto.description !== undefined
+          ? { description: taskDto.description }
+          : {}),
+        ...(taskDto.status !== undefined ? { status: taskDto.status } : {}),
+        ...(taskDto.dueDate !== undefined
+          ? {
+              dueDate: taskDto.dueDate
+                ? parseTaskCalendarDate(taskDto.dueDate)
+                : null,
+            }
+          : {}),
+      },
+    });
+
+    return this.toResponse(updatedTask);
   }
 
   async findOne(currentUser: CurrentUser, id: string): Promise<TaskResponse> {

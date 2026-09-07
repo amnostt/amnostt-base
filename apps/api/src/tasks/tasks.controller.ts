@@ -2,6 +2,7 @@ import {
   Controller,
   Body,
   Get,
+  Patch,
   Param,
   ParseUUIDPipe,
   Post,
@@ -13,6 +14,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { CurrentUser as CurrentUserData } from '../auth/auth.types';
 import { TaskQueryDto } from './dto/task-query.dto';
 import { TaskCreateDto } from './dto/task-create.dto';
+import { TaskUpdateDto } from './dto/task-update.dto';
 import { TasksService } from './tasks.service';
 
 @Controller('tasks')
@@ -26,6 +28,15 @@ export class TasksController {
     @Body() taskDto: TaskCreateDto,
   ) {
     return this.tasksService.create(currentUser, taskDto);
+  }
+
+  @Patch(':id')
+  update(
+    @CurrentUser() currentUser: CurrentUserData,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() taskDto: TaskUpdateDto,
+  ) {
+    return this.tasksService.update(currentUser, id, taskDto);
   }
 
   @Get()

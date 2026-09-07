@@ -8,6 +8,13 @@ export interface CreateTaskInput {
   dueDate?: string
 }
 
+export interface UpdateTaskInput {
+  title: string
+  description?: string | null
+  status: Task['status']
+  dueDate?: string | null
+}
+
 export interface TaskRepository {
   list(query: string): Promise<ApiResponse<Task[]>>
 }
@@ -26,6 +33,18 @@ export function createTask(
 ): Promise<Task> {
   return request<Task>('/tasks', {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+}
+
+export function updateTask(
+  request: <T>(path: string, init?: RequestInit) => Promise<T>,
+  id: string,
+  input: UpdateTaskInput,
+): Promise<Task> {
+  return request<Task>(`/tasks/${id}`, {
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   })

@@ -1,6 +1,7 @@
 import { INestApplication } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
+import { randomUUID } from 'node:crypto';
 import request, { Response } from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
@@ -363,19 +364,21 @@ describe('API (e2e)', () => {
   });
 
   it('lists only owned tasks with defaults and collection metadata', async () => {
+    const isolationKey = randomUUID();
     const otherUser = await prisma.user.findUniqueOrThrow({
       where: { email: 'admin@example.com' },
     });
     const ownTask = await prisma.task.create({
-      data: { ownerId: currentUser.id, title: 'Member task' },
+      data: { ownerId: currentUser.id, title: `Member task ${isolationKey}` },
     });
     const foreignTask = await prisma.task.create({
-      data: { ownerId: otherUser.id, title: 'Admin task' },
+      data: { ownerId: otherUser.id, title: `Admin task ${isolationKey}` },
     });
     createdTaskIds.push(ownTask.id, foreignTask.id);
 
     const response = await request(app.getHttpServer())
       .get('/api/tasks')
+      .query({ search: isolationKey })
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(200);
     const responseBody = response.body as TaskListResponseBody;
@@ -426,6 +429,75 @@ describe('API (e2e)', () => {
     });
   });
 
+  it('updates an owned task, clears its due date, and preserves its owner', async () => {
+    const task = await prisma.task.create({
+      data: {
+        ownerId: currentUser.id,
+        title: 'Editable task',
+        dueDate: new Date('2024-02-29T00:00:00.000Z'),
+      },
+    });
+    createdTaskIds.push(task.id);
+
+    const response = await request(app.getHttpServer())
+      .patch(`/api/tasks/${task.id}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ title: '  Updated task  ', status: 'completed', dueDate: null })
+      .expect(200);
+    const updatedTask = (
+      response.body as SuccessResponse<{
+        id: string;
+        ownerId: string;
+        title: string;
+        status: string;
+        dueDate: string | null;
+      }>
+    ).data;
+
+    expect(updatedTask).toMatchObject({
+      id: task.id,
+      ownerId: currentUser.id,
+      title: 'Updated task',
+      status: 'completed',
+      dueDate: null,
+    });
+  });
+
+  it('rejects invalid patch fields and ownership transfer attempts', async () => {
+    const otherUser = await prisma.user.findUniqueOrThrow({
+      where: { email: 'admin@example.com' },
+    });
+    const task = await prisma.task.create({
+      data: { ownerId: currentUser.id, title: 'Protected task' },
+    });
+    createdTaskIds.push(task.id);
+
+    const invalidResponse = await request(app.getHttpServer())
+      .patch(`/api/tasks/${task.id}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ title: ' ', dueDate: '2024-02-30' })
+      .expect(400);
+    expectError(invalidResponse, 'VALIDATION_FAILED');
+    expect(getError(invalidResponse).error.details).toEqual(
+      expect.arrayContaining([
+        { field: 'title', code: 'TOO_SHORT' },
+        { field: 'dueDate', code: 'INVALID_DATE' },
+      ]),
+    );
+
+    const ownerResponse = await request(app.getHttpServer())
+      .patch(`/api/tasks/${task.id}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ ownerId: otherUser.id })
+      .expect(400);
+    expectError(ownerResponse, 'VALIDATION_FAILED');
+
+    const unchangedTask = await prisma.task.findUniqueOrThrow({
+      where: { id: task.id },
+    });
+    expect(unchangedTask.ownerId).toBe(currentUser.id);
+  });
+
   it('rejects invalid fields and an explicit foreign owner for an own-scoped creator', async () => {
     const otherUser = await prisma.user.findUniqueOrThrow({
       where: { email: 'admin@example.com' },
@@ -467,6 +539,13 @@ describe('API (e2e)', () => {
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(404);
       expectError(response, 'NOT_FOUND');
+
+      const updateResponse = await request(app.getHttpServer())
+        .patch(`/api/tasks/${id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ title: 'Should not update' })
+        .expect(404);
+      expectError(updateResponse, 'NOT_FOUND');
     }
   });
 

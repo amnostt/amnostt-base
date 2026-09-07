@@ -11,7 +11,7 @@ const user = {
   email: 'member@example.com',
   name: 'Member User',
   role: 'Member',
-  permissions: ['tasks:create:own', 'tasks:read:own'],
+  permissions: ['tasks:create:own', 'tasks:read:own', 'tasks:update:own'],
 }
 
 function renderApp(request: <T>(path: string, init?: RequestInit) => Promise<T>, requestResponse: <T>(path: string, init?: RequestInit) => Promise<T>) {
@@ -63,5 +63,33 @@ describe('task create route', () => {
     expect(request).toHaveBeenCalledOnce()
     expect(await screen.findByRole('status')).toHaveTextContent('Task created.')
     await waitFor(() => expect(requestResponse).toHaveBeenCalledTimes(3))
+  })
+
+  it('opens the owned task edit route and loads the selected task', async () => {
+    const task = {
+      id: 'task-1',
+      ownerId: 'member-id',
+      title: 'Report task',
+      description: null,
+      status: 'pending',
+      dueDate: null,
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z',
+    } as const
+    const request = vi.fn().mockImplementation(async (path: string) => {
+      if (path === '/tasks/task-1') return task
+      return { id: 'task-1' }
+    })
+    const requestResponse = vi.fn().mockResolvedValue({ data: [task], meta: { page: 1, limit: 20, totalItems: 1, totalPages: 1 } })
+    window.history.pushState({}, '', '/tasks?search=report')
+    renderApp(request, requestResponse)
+
+    await userEvent.setup().click(await screen.findByRole('link', { name: 'Edit task' }))
+
+    expect(window.location.pathname).toBe('/tasks/task-1/edit')
+    expect(await screen.findByDisplayValue('Report task')).toBeInTheDocument()
+    expect(request).toHaveBeenCalledWith('/tasks/task-1', {
+      headers: { Authorization: 'Bearer token' },
+    })
   })
 })
