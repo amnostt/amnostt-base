@@ -37,6 +37,16 @@ export function getTaskUpdateScope(
     : { id, ownerId: currentUser.id };
 }
 
+export function getTaskDeleteScope(
+  currentUser: CurrentUser,
+  id: string,
+): TaskReadScope {
+  assertTaskDeletePermission(currentUser);
+  return currentUser.permissions.includes('tasks:delete:any')
+    ? { id }
+    : { id, ownerId: currentUser.id };
+}
+
 export function assertTaskOwnerFilter(
   currentUser: CurrentUser,
   ownerId: string,
@@ -77,6 +87,15 @@ function assertTaskUpdatePermission(currentUser: CurrentUser): void {
   if (
     !currentUser.permissions.includes('tasks:update:own') &&
     !currentUser.permissions.includes('tasks:update:any')
+  ) {
+    throw new ForbiddenException('Insufficient permissions');
+  }
+}
+
+function assertTaskDeletePermission(currentUser: CurrentUser): void {
+  if (
+    !currentUser.permissions.includes('tasks:delete:own') &&
+    !currentUser.permissions.includes('tasks:delete:any')
   ) {
     throw new ForbiddenException('Insufficient permissions');
   }

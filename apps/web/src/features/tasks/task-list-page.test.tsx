@@ -1,4 +1,5 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SessionProvider } from '../auth/components/session-provider'
@@ -11,17 +12,20 @@ const user = {
   email: 'member@example.com',
   name: 'Member User',
   role: 'Member',
-  permissions: ['tasks:read:own', 'tasks:update:own'],
+  permissions: ['tasks:read:own', 'tasks:update:own', 'tasks:delete:own'],
 }
 
-function renderPage(requestResponse: <T>(path: string, init?: RequestInit) => Promise<T>) {
+function renderPage(
+  requestResponse: <T>(path: string, init?: RequestInit) => Promise<T>,
+  request: <T>(path: string, init?: RequestInit) => Promise<T> = vi.fn(),
+) {
   const auth: AuthRepository = {
     login: vi.fn(),
     restore: vi.fn().mockResolvedValue({ accessToken: 'token', currentUser: user }),
     refresh: vi.fn(),
     logout: vi.fn(),
   }
-  const store = createSessionStore(auth, vi.fn(), requestResponse)
+  const store = createSessionStore(auth, request, requestResponse)
   render(<MemoryRouter><SessionProvider store={store}><TaskListPage /></SessionProvider></MemoryRouter>)
   void store.getState().bootstrap()
   return store
@@ -66,5 +70,28 @@ describe('TaskListPage', () => {
 
     await waitFor(() => expect(screen.getAllByRole('link', { name: 'Edit task' })).toHaveLength(1))
     expect(screen.getByRole('link', { name: 'Edit task' })).toHaveAttribute('href', '/tasks/own-task/edit')
+    expect(screen.getAllByRole('button', { name: 'Delete task' })).toHaveLength(1)
+  })
+
+  it('confirms permanent deletion and prevents duplicate submissions', async () => {
+    const task = { id: 'own-task', ownerId: 'member-id', title: 'Disposable task', description: null, status: 'pending', dueDate: null, createdAt: '2024-09-06T00:00:00.000Z', updatedAt: '2024-09-06T00:00:00.000Z' }
+    const request = vi.fn(() => new Promise<never>(() => {}))
+    const requestResponse = vi.fn().mockResolvedValue({ data: [task], meta: { page: 1, limit: 20, totalItems: 1, totalPages: 1 } })
+    renderPage(requestResponse, request)
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Delete task' }))
+    expect(screen.getByRole('dialog')).toHaveTextContent('Delete task permanently?')
+
+    const confirm = screen.getByRole('button', { name: 'Delete task permanently' })
+    await user.click(confirm)
+    expect(request).toHaveBeenCalledWith('/tasks/own-task', {
+      headers: { Authorization: 'Bearer token' },
+      method: 'DELETE',
+    })
+    expect(confirm).toBeDisabled()
+
+    await user.click(confirm)
+    expect(request).toHaveBeenCalledOnce()
   })
 })

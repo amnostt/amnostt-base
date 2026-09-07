@@ -1,8 +1,11 @@
 import {
   Controller,
   Body,
+  Delete,
   Get,
   Patch,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Post,
@@ -37,6 +40,15 @@ export class TasksController {
     @Body() taskDto: TaskUpdateDto,
   ) {
     return this.tasksService.update(currentUser, id, taskDto);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(
+    @CurrentUser() currentUser: CurrentUserData,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.tasksService.remove(currentUser, id);
   }
 
   @Get()

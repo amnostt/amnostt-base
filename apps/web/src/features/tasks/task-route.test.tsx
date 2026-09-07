@@ -11,7 +11,7 @@ const user = {
   email: 'member@example.com',
   name: 'Member User',
   role: 'Member',
-  permissions: ['tasks:create:own', 'tasks:read:own', 'tasks:update:own'],
+  permissions: ['tasks:create:own', 'tasks:read:own', 'tasks:update:own', 'tasks:delete:own'],
 }
 
 function renderApp(request: <T>(path: string, init?: RequestInit) => Promise<T>, requestResponse: <T>(path: string, init?: RequestInit) => Promise<T>) {
@@ -91,5 +91,35 @@ describe('task create route', () => {
     expect(request).toHaveBeenCalledWith('/tasks/task-1', {
       headers: { Authorization: 'Bearer token' },
     })
+  })
+
+  it('deletes a task, refetches the list, and confirms completion', async () => {
+    const task = {
+      id: 'task-1',
+      ownerId: 'member-id',
+      title: 'Disposable task',
+      description: null,
+      status: 'pending',
+      dueDate: null,
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z',
+    } as const
+    const request = vi.fn().mockResolvedValue(undefined)
+    const requestResponse = vi.fn().mockResolvedValue({ data: [task], meta: { page: 1, limit: 20, totalItems: 1, totalPages: 1 } })
+    window.history.pushState({}, '', '/tasks')
+    renderApp(request, requestResponse)
+    const userEventApi = userEvent.setup()
+
+    await userEventApi.click(await screen.findByRole('button', { name: 'Delete task' }))
+    await userEventApi.click(screen.getByRole('button', { name: 'Delete task permanently' }))
+
+    await waitFor(() => expect(window.location.pathname).toBe('/tasks'))
+    expect(request).toHaveBeenCalledWith('/tasks/task-1', {
+      headers: { Authorization: 'Bearer token' },
+      method: 'DELETE',
+    })
+    expect(request).toHaveBeenCalledOnce()
+    expect(await screen.findByRole('status')).toHaveTextContent('Task deleted.')
+    await waitFor(() => expect(requestResponse).toHaveBeenCalledTimes(2))
   })
 })

@@ -49,3 +49,10 @@ export function updateTask(
     body: JSON.stringify(input),
   })
 }
+
+export function deleteTask(
+  request: <T>(path: string, init?: RequestInit) => Promise<T>,
+  id: string,
+): Promise<void> {
+  return request<void>(`/tasks/${id}`, { method: 'DELETE' })
+}

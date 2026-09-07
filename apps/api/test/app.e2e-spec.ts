@@ -463,6 +463,29 @@ describe('API (e2e)', () => {
     });
   });
 
+  it('permanently deletes an owned task exactly once', async () => {
+    const task = await prisma.task.create({
+      data: { ownerId: currentUser.id, title: 'Disposable task' },
+    });
+    createdTaskIds.push(task.id);
+
+    const response = await request(app.getHttpServer())
+      .delete(`/api/tasks/${task.id}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(204);
+
+    expect(response.text).toBe('');
+    await expect(
+      prisma.task.findUnique({ where: { id: task.id } }),
+    ).resolves.toBeNull();
+
+    const duplicateResponse = await request(app.getHttpServer())
+      .delete(`/api/tasks/${task.id}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(404);
+    expectError(duplicateResponse, 'NOT_FOUND');
+  });
+
   it('rejects invalid patch fields and ownership transfer attempts', async () => {
     const otherUser = await prisma.user.findUniqueOrThrow({
       where: { email: 'admin@example.com' },
@@ -547,6 +570,28 @@ describe('API (e2e)', () => {
         .expect(404);
       expectError(updateResponse, 'NOT_FOUND');
     }
+  });
+
+  it('returns 404 when deleting a foreign or missing task', async () => {
+    const otherUser = await prisma.user.findUniqueOrThrow({
+      where: { email: 'admin@example.com' },
+    });
+    const foreignTask = await prisma.task.create({
+      data: { ownerId: otherUser.id, title: 'Private disposable task' },
+    });
+    createdTaskIds.push(foreignTask.id);
+
+    for (const id of [foreignTask.id, '00000000-0000-0000-0000-000000000000']) {
+      const response = await request(app.getHttpServer())
+        .delete(`/api/tasks/${id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(404);
+      expectError(response, 'NOT_FOUND');
+    }
+
+    await expect(
+      prisma.task.findUnique({ where: { id: foreignTask.id } }),
+    ).resolves.toEqual(expect.objectContaining({ id: foreignTask.id }));
   });
 
   it('rejects a foreign owner filter and undeclared query parameters', async () => {

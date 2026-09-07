@@ -5,6 +5,7 @@ import type { CurrentUser } from '../auth/auth.types';
 import {
   assertTaskOwnerFilter,
   getTaskCreateOwnerId,
+  getTaskDeleteScope,
   getTaskListScope,
   getTaskReadScope,
   getTaskUpdateScope,
@@ -147,6 +148,15 @@ export class TasksService {
     });
     if (!task) throw new NotFoundException('Task not found');
     return this.toResponse(task);
+  }
+
+  async remove(currentUser: CurrentUser, id: string): Promise<void> {
+    const task = await this.prisma.task.findFirst({
+      where: getTaskDeleteScope(currentUser, id),
+    });
+    if (!task) throw new NotFoundException('Task not found');
+
+    await this.prisma.task.delete({ where: { id: task.id } });
   }
 
   private toResponse(task: {
