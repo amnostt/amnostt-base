@@ -4,4 +4,5 @@ export const selectSessionSnapshot = (state: SessionStore) => state.snapshot
 export const selectBootstrap = (state: SessionStore) => state.bootstrap
 export const selectLogin = (state: SessionStore) => state.login
 export const selectLogout = (state: SessionStore) => state.logout
+export const selectRequest = (state: SessionStore) => state.request
 export const selectRequestResponse = (state: SessionStore) => state.requestResponse

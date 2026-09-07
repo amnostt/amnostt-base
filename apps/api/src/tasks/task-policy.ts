@@ -39,6 +39,24 @@ export function assertTaskOwnerFilter(
   }
 }
 
+export function getTaskCreateOwnerId(
+  currentUser: CurrentUser,
+  requestedOwnerId?: string,
+): string {
+  const ownerId = requestedOwnerId ?? currentUser.id;
+  const hasAnyPermission = currentUser.permissions.includes('tasks:create:any');
+  const hasOwnPermission = currentUser.permissions.includes('tasks:create:own');
+
+  if (
+    (ownerId === currentUser.id && !hasOwnPermission && !hasAnyPermission) ||
+    (ownerId !== currentUser.id && !hasAnyPermission)
+  ) {
+    throw new ForbiddenException('Insufficient permissions');
+  }
+
+  return ownerId;
+}
+
 function assertTaskReadPermission(currentUser: CurrentUser): void {
   if (!currentUser.permissions.includes('tasks:read:own')) {
     throw new ForbiddenException('Insufficient permissions');

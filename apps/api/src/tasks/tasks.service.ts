@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma.service';
 import type { CurrentUser } from '../auth/auth.types';
 import {
   assertTaskOwnerFilter,
+  getTaskCreateOwnerId,
   getTaskListScope,
   getTaskReadScope,
 } from './task-policy';
@@ -13,6 +14,7 @@ import {
   serializeTaskCalendarDate,
 } from './task-query';
 import type { TaskQueryDto } from './dto/task-query.dto';
+import type { TaskCreateDto } from './dto/task-create.dto';
 
 export interface TaskResponse {
   id: string;
@@ -33,6 +35,25 @@ export interface TaskListResponse {
 @Injectable()
 export class TasksService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async create(
+    currentUser: CurrentUser,
+    taskDto: TaskCreateDto,
+  ): Promise<TaskResponse> {
+    const task = await this.prisma.task.create({
+      data: {
+        ownerId: getTaskCreateOwnerId(currentUser, taskDto.ownerId),
+        title: taskDto.title,
+        description: taskDto.description ?? null,
+        status: taskDto.status ?? TaskStatus.pending,
+        dueDate: taskDto.dueDate
+          ? parseTaskCalendarDate(taskDto.dueDate)
+          : null,
+      },
+    });
+
+    return this.toResponse(task);
+  }
 
   async findAll(
     currentUser: CurrentUser,

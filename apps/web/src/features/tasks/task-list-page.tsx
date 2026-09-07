@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { useSession } from '../auth/components/session-provider'
+import { TaskForm } from './task-form'
 import { createTaskRepository } from './task-repository'
 import type { Task } from './task-models'
 
@@ -10,11 +12,17 @@ type ListState =
   | { status: 'ready'; tasks: Task[]; totalItems: number }
 
 export function TaskListPage() {
-  const { snapshot, requestResponse } = useSession()
+  const { snapshot, request, requestResponse } = useSession()
+  const location = useLocation()
+  const navigate = useNavigate()
   const userId = snapshot.status === 'authenticated' ? snapshot.user.id : undefined
   const [state, setState] = useState<ListState>({ status: 'loading' })
   const [attempt, setAttempt] = useState(0)
-  const query = window.location.search
+  const query = location.search
+  const notice = (location.state as { notice?: string } | null)?.notice
+  const canCreate = snapshot.status === 'authenticated' && (
+    snapshot.user.permissions.includes('tasks:create:own') || snapshot.user.permissions.includes('tasks:create:any')
+  )
 
   useEffect(() => {
     if (!userId) return
@@ -27,15 +35,17 @@ export function TaskListPage() {
         if (active) setState({ status: 'error' })
       })
     return () => { active = false }
-  }, [attempt, query, requestResponse, userId])
+  }, [attempt, location.pathname, query, requestResponse, userId])
 
   const hasCriteria = hasTaskCriteria(query)
   return <section className="grid gap-6" aria-labelledby="tasks-heading">
-    <div><h1 id="tasks-heading" className="text-3xl font-semibold">Tasks</h1><p className="text-muted-foreground">Your authorized tasks.</p></div>
+    <div className="flex items-start justify-between gap-4"><div><h1 id="tasks-heading" className="text-3xl font-semibold">Tasks</h1><p className="text-muted-foreground">Your authorized tasks.</p></div>{canCreate && <Link to={`/tasks/new${query}`}>Create task</Link>}</div>
+    {notice && <p role="status">{notice}</p>}
     {state.status === 'loading' && <TaskTableSkeleton />}
     {state.status === 'error' && <div className="grid gap-3" role="alert"><p>Unable to load tasks.</p><Button type="button" onClick={() => { setState({ status: 'loading' }); setAttempt((value) => value + 1) }}>Retry</Button></div>}
     {state.status === 'ready' && state.tasks.length === 0 && <div className="grid gap-3"><p>{hasCriteria ? 'No tasks match your criteria.' : 'No tasks yet.'}</p>{hasCriteria && <a href="/tasks">Clear criteria</a>}</div>}
     {state.status === 'ready' && state.tasks.length > 0 && <TaskTable tasks={state.tasks} totalItems={state.totalItems} />}
+    {location.pathname === '/tasks/new' && <aside aria-label="Create task panel" className="grid gap-4"><h2 className="text-2xl font-semibold">Create task</h2><TaskForm request={request} onClose={() => navigate(`/tasks${query}`)} onSaved={() => navigate(`/tasks${query}`, { state: { notice: 'Task created.' } })} /></aside>}
   </section>
 }
 

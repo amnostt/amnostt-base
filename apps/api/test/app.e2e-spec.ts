@@ -394,6 +394,64 @@ describe('API (e2e)', () => {
     });
   });
 
+  it('creates a self-owned task with trimmed fields, a default status, and a past date', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/tasks')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        title: '  Created task  ',
+        description: 'Created through the API',
+        dueDate: '2020-01-02',
+      })
+      .expect(201);
+
+    const task = (
+      response.body as SuccessResponse<{
+        id: string;
+        ownerId: string;
+        title: string;
+        description: string;
+        status: string;
+        dueDate: string;
+      }>
+    ).data;
+    createdTaskIds.push(task.id);
+
+    expect(task).toMatchObject({
+      ownerId: currentUser.id,
+      title: 'Created task',
+      description: 'Created through the API',
+      status: 'pending',
+      dueDate: '2020-01-02',
+    });
+  });
+
+  it('rejects invalid fields and an explicit foreign owner for an own-scoped creator', async () => {
+    const otherUser = await prisma.user.findUniqueOrThrow({
+      where: { email: 'admin@example.com' },
+    });
+
+    const invalidResponse = await request(app.getHttpServer())
+      .post('/api/tasks')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ title: ' ', dueDate: '2024-02-30' })
+      .expect(400);
+    expectError(invalidResponse, 'VALIDATION_FAILED');
+    expect(getError(invalidResponse).error.details).toEqual(
+      expect.arrayContaining([
+        { field: 'title', code: 'TOO_SHORT' },
+        { field: 'dueDate', code: 'INVALID_DATE' },
+      ]),
+    );
+
+    const foreignOwnerResponse = await request(app.getHttpServer())
+      .post('/api/tasks')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ title: 'Foreign task', ownerId: otherUser.id })
+      .expect(403);
+    expectError(foreignOwnerResponse, 'FORBIDDEN');
+  });
+
   it('returns 404 for foreign and missing task identifiers', async () => {
     const otherUser = await prisma.user.findUniqueOrThrow({
       where: { email: 'admin@example.com' },

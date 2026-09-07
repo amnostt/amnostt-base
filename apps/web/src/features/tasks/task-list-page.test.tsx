@@ -1,4 +1,5 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SessionProvider } from '../auth/components/session-provider'
 import { createSessionStore } from '../auth/store/session-store'
@@ -21,7 +22,7 @@ function renderPage(requestResponse: <T>(path: string, init?: RequestInit) => Pr
     logout: vi.fn(),
   }
   const store = createSessionStore(auth, vi.fn(), requestResponse)
-  render(<SessionProvider store={store}><TaskListPage /></SessionProvider>)
+  render(<MemoryRouter><SessionProvider store={store}><TaskListPage /></SessionProvider></MemoryRouter>)
   void store.getState().bootstrap()
   return store
 }

@@ -34,7 +34,7 @@ function AuthenticatedLoginRedirect() {
 }
 
 function AuthenticatedRoutes() {
-  return <Routes><Route element={<AuthenticatedShell />}><Route path="/" element={<HomePage />} /><Route path="/tasks" element={<TaskRoute />} /><Route path="/403" element={<ForbiddenPage />} /><Route path="/login" element={<AuthenticatedLoginRedirect />} /><Route path="*" element={<NotFoundPage />} /></Route></Routes>
+  return <Routes><Route element={<AuthenticatedShell />}><Route path="/" element={<HomePage />} /><Route path="/tasks" element={<TaskRoute />} /><Route path="/tasks/new" element={<TaskRoute />} /><Route path="/403" element={<ForbiddenPage />} /><Route path="/login" element={<AuthenticatedLoginRedirect />} /><Route path="*" element={<NotFoundPage />} /></Route></Routes>
 }
 
 function AppRoutes() {
