@@ -24,7 +24,15 @@ function renderWithRequest(api: AuthRepository, request: <T>(path: string, init?
   render(<SessionProvider store={store}><App /></SessionProvider>)
   return store
 }
-afterEach(cleanup)
+function renderWithResponse(api: AuthRepository, requestResponse: <T>(path: string, init?: RequestInit) => Promise<T>) {
+  const store = createSessionStore(api, vi.fn(), requestResponse)
+  render(<SessionProvider store={store}><App /></SessionProvider>)
+  return store
+}
+afterEach(() => {
+  cleanup()
+  window.history.replaceState({}, '', '/')
+})
 
 describe('App session integration', () => {
   it('renders login validation errors without submitting invalid credentials', async () => {
@@ -150,5 +158,29 @@ describe('App session integration', () => {
     await waitFor(() => expect(screen.getByRole('heading', { name: 'Sign in' })).toBeInTheDocument())
     expect(screen.queryByText(/remote failure/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('keeps any-only readers in the shell with forbidden content and no task navigation', async () => {
+    window.history.pushState({}, '', '/tasks')
+    const anyOnlyUser = { ...user, permissions: ['tasks:read:any'] }
+    const api = auth({ restore: vi.fn().mockResolvedValue({ accessToken: 'token', currentUser: anyOnlyUser }) })
+
+    renderIntegration(api)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('403')
+    expect(screen.getByRole('link', { name: 'Home' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Tasks' })).not.toBeInTheDocument()
+  })
+
+  it('keeps task navigation and list access for users with the own-read grant', async () => {
+    window.history.pushState({}, '', '/tasks')
+    const ownReader = { ...user, permissions: ['tasks:read:own'] }
+    const api = auth({ restore: vi.fn().mockResolvedValue({ accessToken: 'token', currentUser: ownReader }) })
+    const requestResponse = vi.fn().mockResolvedValue({ data: [], meta: { page: 1, limit: 20, totalItems: 0, totalPages: 0 } })
+
+    renderWithResponse(api, requestResponse)
+
+    expect(await screen.findByRole('link', { name: 'Tasks' })).toBeInTheDocument()
+    expect(await screen.findByText('No tasks yet.')).toBeInTheDocument()
   })
 })

@@ -1,11 +1,15 @@
 import { useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useSession } from './session-provider'
+import { getSafeReturnPath } from '../../../routing'
 
 export function LoginForm({ expired = false }: { expired?: boolean }) {
   const { snapshot, login } = useSession()
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -17,7 +21,7 @@ export function LoginForm({ expired = false }: { expired?: boolean }) {
       setError('Enter a valid email and password.')
       return
     }
-    try { await login({ email, password }); setPassword('') } catch { setPassword(''); setError('Unable to sign in. Check your credentials and try again.') }
+    try { await login({ email, password }); setPassword(''); navigate(getSafeReturnPath(searchParams.get('returnTo')), { replace: true }) } catch { setPassword(''); setError('Unable to sign in. Check your credentials and try again.') }
   }
   return <main className="mx-auto grid min-h-screen max-w-sm content-center gap-6 p-8">
     <div><h1 className="text-3xl font-semibold">Sign in</h1>{expired && <p role="alert">Your session expired. Please sign in again.</p>}</div>
