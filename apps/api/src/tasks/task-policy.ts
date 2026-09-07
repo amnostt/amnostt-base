@@ -11,7 +11,7 @@ export interface TaskReadScope {
 }
 
 export function getTaskListScope(currentUser: CurrentUser): TaskListScope {
-  assertTaskReadPermission(currentUser);
+  assertTaskListReadPermission(currentUser);
   return currentUser.permissions.includes('tasks:read:any')
     ? {}
     : { ownerId: currentUser.id };
@@ -78,6 +78,15 @@ export function getTaskCreateOwnerId(
 }
 
 function assertTaskReadPermission(currentUser: CurrentUser): void {
+  if (
+    !currentUser.permissions.includes('tasks:read:own') &&
+    !currentUser.permissions.includes('tasks:read:any')
+  ) {
+    throw new ForbiddenException('Insufficient permissions');
+  }
+}
+
+function assertTaskListReadPermission(currentUser: CurrentUser): void {
   if (!currentUser.permissions.includes('tasks:read:own')) {
     throw new ForbiddenException('Insufficient permissions');
   }

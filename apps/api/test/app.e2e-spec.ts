@@ -397,6 +397,35 @@ describe('API (e2e)', () => {
     });
   });
 
+  it('reads an owned task by identifier', async () => {
+    const task = await prisma.task.create({
+      data: {
+        ownerId: currentUser.id,
+        title: 'Readable owned task',
+        description: 'Single-resource read coverage',
+      },
+    });
+    createdTaskIds.push(task.id);
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/tasks/${task.id}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+    const responseBody = response.body as SuccessResponse<{
+      id: string;
+      ownerId: string;
+      title: string;
+      description: string | null;
+    }>;
+
+    expect(responseBody.data).toMatchObject({
+      id: task.id,
+      ownerId: currentUser.id,
+      title: 'Readable owned task',
+      description: 'Single-resource read coverage',
+    });
+  });
+
   it('creates a self-owned task with trimmed fields, a default status, and a past date', async () => {
     const response = await request(app.getHttpServer())
       .post('/api/tasks')
@@ -656,6 +685,66 @@ describe('API (e2e)', () => {
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(400);
     expectError(invalidLimitResponse, 'VALIDATION_FAILED');
+  });
+
+  it('searches title and description case-insensitively and reports filtered no-results', async () => {
+    const isolationKey = randomUUID();
+    const matchingTask = await prisma.task.create({
+      data: {
+        ownerId: currentUser.id,
+        title: `Unrelated title ${isolationKey}`,
+        description: `Description Marker ${isolationKey}%`,
+      },
+    });
+    const nonMatchingTask = await prisma.task.create({
+      data: {
+        ownerId: currentUser.id,
+        title: `Another title ${isolationKey}`,
+        description: 'Different description',
+      },
+    });
+    createdTaskIds.push(matchingTask.id, nonMatchingTask.id);
+
+    const matchingResponse = await request(app.getHttpServer())
+      .get(`/api/tasks?search=description%20marker%20${isolationKey}%25`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+    const matchingBody = matchingResponse.body as TaskListResponseBody;
+    expect(matchingBody.data).toEqual([
+      expect.objectContaining({ id: matchingTask.id }),
+    ]);
+    expect(matchingBody.meta).toEqual({
+      page: 1,
+      limit: 20,
+      totalItems: 1,
+      totalPages: 1,
+    });
+
+    const noResultsResponse = await request(app.getHttpServer())
+      .get(`/api/tasks?search=missing-${isolationKey}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+    const noResultsBody = noResultsResponse.body as TaskListResponseBody;
+    expect(noResultsBody.data).toEqual([]);
+    expect(noResultsBody.meta).toEqual({
+      page: 1,
+      limit: 20,
+      totalItems: 0,
+      totalPages: 0,
+    });
+  });
+
+  it.each([
+    ['page=0', 'page below minimum'],
+    ['limit=0', 'limit below minimum'],
+    ['sort=priority', 'undeclared sort field'],
+  ])('rejects invalid rich-query parameters: %s (%s)', async (query) => {
+    const response = await request(app.getHttpServer())
+      .get(`/api/tasks?${query}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(400);
+
+    expectError(response, 'VALIDATION_FAILED');
   });
 
   afterEach(async () => {

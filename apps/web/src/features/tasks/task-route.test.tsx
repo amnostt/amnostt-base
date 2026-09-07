@@ -38,6 +38,7 @@ describe('task create route', () => {
     const userEventApi = userEvent.setup()
 
     await userEventApi.click(await screen.findByRole('link', { name: 'Create task' }))
+    expect(screen.getByRole('dialog', { name: 'Create task panel' })).toHaveAttribute('data-side', 'right')
     await userEventApi.type(screen.getByLabelText('Title'), 'Draft task')
     await userEventApi.click(screen.getByRole('button', { name: 'Close' }))
     await userEventApi.click(screen.getByRole('button', { name: 'Discard changes' }))
@@ -61,7 +62,9 @@ describe('task create route', () => {
     await waitFor(() => expect(window.location.pathname).toBe('/tasks'))
     expect(window.location.search).toBe('?status=pending')
     expect(request).toHaveBeenCalledOnce()
-    expect(await screen.findByRole('status')).toHaveTextContent('Task created.')
+    const toast = await screen.findByRole('status')
+    expect(toast).toHaveAttribute('data-slot', 'toast')
+    expect(toast).toHaveTextContent('Task created.')
     await waitFor(() => expect(requestResponse).toHaveBeenCalledTimes(3))
   })
 
@@ -84,13 +87,45 @@ describe('task create route', () => {
     window.history.pushState({}, '', '/tasks?search=report')
     renderApp(request, requestResponse)
 
-    await userEvent.setup().click(await screen.findByRole('link', { name: 'Edit task' }))
+    const userEventApi = userEvent.setup()
+    await userEventApi.click(await screen.findByRole('button', { name: 'More actions for Report task' }))
+    await userEventApi.click(screen.getByRole('menuitem', { name: 'Edit task' }))
 
     expect(window.location.pathname).toBe('/tasks/task-1/edit')
+    expect(screen.getByRole('dialog', { name: 'Edit task panel' })).toHaveAttribute('data-side', 'right')
     expect(await screen.findByDisplayValue('Report task')).toBeInTheDocument()
     expect(request).toHaveBeenCalledWith('/tasks/task-1', {
       headers: { Authorization: 'Bearer token' },
     })
+  })
+
+  it('closes the edit panel and shows a toast after a successful update', async () => {
+    const task = {
+      id: 'task-1',
+      ownerId: 'member-id',
+      title: 'Report task',
+      description: null,
+      status: 'pending',
+      dueDate: null,
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z',
+    } as const
+    const request = vi.fn().mockImplementation(async (path: string) => path === '/tasks/task-1' ? task : { id: 'task-1' })
+    const requestResponse = vi.fn().mockResolvedValue({ data: [task], meta: { page: 1, limit: 20, totalItems: 1, totalPages: 1 } })
+    window.history.pushState({}, '', '/tasks')
+    renderApp(request, requestResponse)
+    const userEventApi = userEvent.setup()
+
+    await userEventApi.click(await screen.findByRole('button', { name: 'More actions for Report task' }))
+    await userEventApi.click(screen.getByRole('menuitem', { name: 'Edit task' }))
+    await userEventApi.clear(await screen.findByDisplayValue('Report task'))
+    await userEventApi.type(screen.getByLabelText('Title'), 'Updated report')
+    await userEventApi.click(screen.getByRole('button', { name: 'Update task' }))
+
+    await waitFor(() => expect(window.location.pathname).toBe('/tasks'))
+    const toast = await screen.findByRole('status')
+    expect(toast).toHaveAttribute('data-slot', 'toast')
+    expect(toast).toHaveTextContent('Task updated.')
   })
 
   it('deletes a task, refetches the list, and confirms completion', async () => {
@@ -110,7 +145,8 @@ describe('task create route', () => {
     renderApp(request, requestResponse)
     const userEventApi = userEvent.setup()
 
-    await userEventApi.click(await screen.findByRole('button', { name: 'Delete task' }))
+    await userEventApi.click(await screen.findByRole('button', { name: 'More actions for Disposable task' }))
+    await userEventApi.click(screen.getByRole('menuitem', { name: 'Delete task' }))
     await userEventApi.click(screen.getByRole('button', { name: 'Delete task permanently' }))
 
     await waitFor(() => expect(window.location.pathname).toBe('/tasks'))
@@ -119,7 +155,38 @@ describe('task create route', () => {
       method: 'DELETE',
     })
     expect(request).toHaveBeenCalledOnce()
-    expect(await screen.findByRole('status')).toHaveTextContent('Task deleted.')
+    const toast = await screen.findByRole('status')
+    expect(toast).toHaveAttribute('data-slot', 'toast')
+    expect(toast).toHaveTextContent('Task deleted.')
     await waitFor(() => expect(requestResponse).toHaveBeenCalledTimes(2))
+  })
+
+  it('synchronizes search, filters, sorting, and pagination with the URL', async () => {
+    const task = {
+      id: 'task-1',
+      ownerId: 'member-id',
+      title: 'Report task',
+      description: 'A report',
+      status: 'completed',
+      dueDate: '2024-02-29',
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z',
+    } as const
+    const requestResponse = vi.fn().mockResolvedValue({ data: [task], meta: { page: 1, limit: 20, totalItems: 21, totalPages: 2 } })
+    window.history.pushState({}, '', '/tasks')
+    renderApp(vi.fn(), requestResponse)
+    const userEventApi = userEvent.setup()
+
+    await userEventApi.type(await screen.findByLabelText('Search tasks'), 'Report')
+    await userEventApi.selectOptions(screen.getByLabelText('Status'), 'completed')
+    await userEventApi.selectOptions(screen.getByLabelText('Sort by'), '-title')
+    await userEventApi.selectOptions(screen.getByLabelText('Items per page'), '10')
+    await userEventApi.click(screen.getByRole('button', { name: 'Next page' }))
+
+    expect(window.location.search).toBe('?search=Report&status=completed&sort=-title&page=2&limit=10')
+    expect(requestResponse).toHaveBeenLastCalledWith(
+      '/tasks?search=Report&status=completed&sort=-title&page=2&limit=10',
+      { headers: { Authorization: 'Bearer token' } },
+    )
   })
 })

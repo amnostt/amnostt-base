@@ -26,6 +26,11 @@ describe('task read policy', () => {
     permissions: ['tasks:read:any'],
   };
 
+  const neither: CurrentUser = {
+    ...member,
+    permissions: [],
+  };
+
   it('scopes own list access to the authenticated owner', () => {
     expect(getTaskListScope(member)).toEqual({ ownerId: 'member-id' });
     expect(getTaskReadScope(member, 'task-id')).toEqual({
@@ -37,6 +42,16 @@ describe('task read policy', () => {
   it('leaves any-scoped list and read access unbounded by owner', () => {
     expect(getTaskListScope(admin)).toEqual({});
     expect(getTaskReadScope(admin, 'task-id')).toEqual({ id: 'task-id' });
+  });
+
+  it('allows any-only single-resource reads without an owner predicate', () => {
+    expect(getTaskReadScope(anyOnly, 'task-id')).toEqual({ id: 'task-id' });
+  });
+
+  it('rejects single-resource reads without an own or any grant', () => {
+    expect(() => getTaskReadScope(neither, 'task-id')).toThrow(
+      new ForbiddenException('Insufficient permissions'),
+    );
   });
 
   it('rejects an explicit foreign owner filter without any scope', () => {

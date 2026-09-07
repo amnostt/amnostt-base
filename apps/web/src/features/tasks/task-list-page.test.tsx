@@ -18,6 +18,7 @@ const user = {
 function renderPage(
   requestResponse: <T>(path: string, init?: RequestInit) => Promise<T>,
   request: <T>(path: string, init?: RequestInit) => Promise<T> = vi.fn(),
+  initialEntry = '/',
 ) {
   const auth: AuthRepository = {
     login: vi.fn(),
@@ -26,7 +27,7 @@ function renderPage(
     logout: vi.fn(),
   }
   const store = createSessionStore(auth, request, requestResponse)
-  render(<MemoryRouter><SessionProvider store={store}><TaskListPage /></SessionProvider></MemoryRouter>)
+  render(<MemoryRouter initialEntries={[initialEntry]}><SessionProvider store={store}><TaskListPage /></SessionProvider></MemoryRouter>)
   void store.getState().bootstrap()
   return store
 }
@@ -50,6 +51,14 @@ describe('TaskListPage', () => {
     expect(screen.queryByText('No tasks match your criteria.')).not.toBeInTheDocument()
   })
 
+  it('explains when an active filter has no matching tasks and offers to clear it', async () => {
+    const requestResponse = vi.fn().mockResolvedValue({ data: [], meta: { page: 1, limit: 20, totalItems: 0, totalPages: 0 } })
+    renderPage(requestResponse, vi.fn(), '/tasks?status=completed')
+
+    await waitFor(() => expect(screen.getByText('No tasks match your criteria.')).toBeInTheDocument())
+    expect(screen.getByRole('link', { name: 'Clear criteria' })).toHaveAttribute('href', '/tasks')
+  })
+
   it('shows a general error and retries the same collection request', async () => {
     const requestResponse = vi.fn()
       .mockRejectedValueOnce(new Error('network failure'))
@@ -62,15 +71,22 @@ describe('TaskListPage', () => {
     expect(requestResponse).toHaveBeenCalledTimes(2)
   })
 
-  it('shows edit only for rows owned by the authenticated user', async () => {
+  it('shows permitted row actions in an accessible overflow menu and preserves query state', async () => {
     const ownTask = { id: 'own-task', ownerId: 'member-id', title: 'Own task', description: null, status: 'pending', dueDate: null, createdAt: '2024-09-06T00:00:00.000Z', updatedAt: '2024-09-06T00:00:00.000Z' }
     const foreignTask = { id: 'foreign-task', ownerId: 'other-id', title: 'Foreign task', description: null, status: 'pending', dueDate: null, createdAt: '2024-09-06T00:00:00.000Z', updatedAt: '2024-09-06T00:00:00.000Z' }
     const requestResponse = vi.fn().mockResolvedValue({ data: [ownTask, foreignTask], meta: { page: 1, limit: 20, totalItems: 2, totalPages: 1 } })
-    renderPage(requestResponse)
+    renderPage(requestResponse, vi.fn(), '/tasks?search=report&page=2')
 
-    await waitFor(() => expect(screen.getAllByRole('link', { name: 'Edit task' })).toHaveLength(1))
-    expect(screen.getByRole('link', { name: 'Edit task' })).toHaveAttribute('href', '/tasks/own-task/edit')
-    expect(screen.getAllByRole('button', { name: 'Delete task' })).toHaveLength(1)
+    const menuButton = await screen.findByRole('button', { name: 'More actions for Own task' })
+    expect(screen.queryByRole('link', { name: 'Edit task' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Delete task' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'More actions for Foreign task' })).not.toBeInTheDocument()
+
+    await userEvent.setup().click(menuButton)
+
+    const menu = screen.getByRole('menu', { name: 'Actions for Own task' })
+    expect(screen.getByRole('menuitem', { name: 'Edit task' })).toHaveAttribute('href', '/tasks/own-task/edit?search=report&page=2')
+    expect(menu).toHaveTextContent('Delete task')
   })
 
   it('confirms permanent deletion and prevents duplicate submissions', async () => {
@@ -80,8 +96,10 @@ describe('TaskListPage', () => {
     renderPage(requestResponse, request)
     const user = userEvent.setup()
 
-    await user.click(await screen.findByRole('button', { name: 'Delete task' }))
-    expect(screen.getByRole('dialog')).toHaveTextContent('Delete task permanently?')
+    await user.click(await screen.findByRole('button', { name: 'More actions for Disposable task' }))
+    await user.click(screen.getByRole('menuitem', { name: 'Delete task' }))
+    expect(screen.getByRole('dialog')).toHaveTextContent('Delete task "Disposable task" permanently?')
+    expect(screen.getByRole('dialog')).toHaveTextContent('This action cannot be undone.')
 
     const confirm = screen.getByRole('button', { name: 'Delete task permanently' })
     await user.click(confirm)
