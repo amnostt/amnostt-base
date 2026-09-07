@@ -18,6 +18,7 @@ model User {
   roleId       String    @map("role_id") @db.Uuid
   role         Role      @relation(fields: [roleId], references: [id], onDelete: Restrict)
   sessions     Session[]
+  tasks        Task[]
   createdAt    DateTime  @default(now()) @map("created_at")
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
@@ -69,4 +70,27 @@ model Session {
 
   @@index([userId])
   @@map("sessions")
+}
+
+enum TaskStatus {
+  pending
+  in_progress
+  completed
+}
+
+model Task {
+  id          String     @id @default(uuid()) @db.Uuid
+  ownerId     String     @map("owner_id") @db.Uuid
+  owner       User       @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  title       String
+  description String?
+  status      TaskStatus @default(pending)
+  dueDate     DateTime?  @map("due_date") @db.Date
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  @@index([ownerId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("tasks")
 }

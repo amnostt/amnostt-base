@@ -10,7 +10,7 @@ import { createSessionStore } from './features/auth/store/session-store'
 const apiUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api'
 const apiClient = createApiClient(apiUrl)
 const authRepository = new HttpAuthRepository(apiClient)
-const sessionStore = createSessionStore(authRepository, apiClient.request)
+const sessionStore = createSessionStore(authRepository, apiClient.request, apiClient.requestResponse)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

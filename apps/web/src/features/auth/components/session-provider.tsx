@@ -7,6 +7,7 @@ import {
   selectBootstrap,
   selectLogin,
   selectLogout,
+  selectRequestResponse,
   selectSessionSnapshot,
 } from '../store/session-selectors'
 
@@ -27,6 +28,7 @@ export function useSession() {
   const bootstrap = useStore(store, selectBootstrap)
   const login = useStore(store, selectLogin)
   const logout = useStore(store, selectLogout)
+  const requestResponse = useStore(store, selectRequestResponse)
 
   return {
     store,
@@ -34,5 +36,6 @@ export function useSession() {
     bootstrap,
     login,
     logout,
+    requestResponse,
   }
 }

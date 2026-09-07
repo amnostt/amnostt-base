@@ -6,10 +6,28 @@ import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { configureApp } from './../src/app.setup';
 import type { CurrentUser } from './../src/auth/auth.types';
+import { PrismaService } from './../src/prisma.service';
 
-interface LoginResponseBody {
+interface LoginPayload {
   accessToken: string;
   currentUser: CurrentUser;
+}
+
+interface SuccessResponse<T> {
+  data: T;
+}
+
+interface ErrorResponse {
+  error: {
+    code: string;
+    message: string;
+    details?: Array<{ field: string; code: string }>;
+  };
+}
+
+interface TaskListResponseBody {
+  data: Array<{ id: string; dueDate: string | null }>;
+  meta: { page: number; limit: number; totalItems: number; totalPages: number };
 }
 
 interface LoginSession {
@@ -22,10 +40,12 @@ describe('API (e2e)', () => {
   let corsOrigin: string;
   let accessToken: string;
   let currentUser: CurrentUser;
-  let loginResponseBody: LoginResponseBody;
+  let loginResponseBody: LoginPayload;
   let refreshCookie: string | undefined;
   let cookieSecure: boolean;
   let refreshTtlSeconds: number;
+  let prisma: PrismaService;
+  const createdTaskIds: string[] = [];
 
   function getRefreshCookie(response: Response): string {
     const setCookieHeaders = response.headers['set-cookie'] as
@@ -49,7 +69,8 @@ describe('API (e2e)', () => {
       .expect(200);
 
     return {
-      accessToken: (response.body as LoginResponseBody).accessToken,
+      accessToken: (response.body as SuccessResponse<LoginPayload>).data
+        .accessToken,
       refreshCookie: getRefreshCookie(response),
     };
   }
@@ -69,9 +90,14 @@ describe('API (e2e)', () => {
     );
   }
 
-  function getErrorMessage(response: Response): string {
-    const responseBody = response.body as unknown as { message: string };
-    return responseBody.message;
+  function expectError(response: Response, code: string): void {
+    const responseBody = getError(response);
+    expect(responseBody.error.code).toBe(code);
+    expect(responseBody.error.message.trim()).not.toBe('');
+  }
+
+  function getError(response: Response): ErrorResponse {
+    return response.body as ErrorResponse;
   }
 
   beforeAll(async () => {
@@ -80,6 +106,7 @@ describe('API (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    prisma = app.get(PrismaService);
 
     const configService = app.get(ConfigService);
     configureApp(app, configService);
@@ -112,7 +139,7 @@ describe('API (e2e)', () => {
       .expect(200);
 
     const responseBody: unknown = loginResponse.body;
-    loginResponseBody = responseBody as LoginResponseBody;
+    loginResponseBody = (responseBody as SuccessResponse<LoginPayload>).data;
     accessToken = loginResponseBody.accessToken;
     currentUser = loginResponseBody.currentUser;
 
@@ -124,9 +151,10 @@ describe('API (e2e)', () => {
   });
 
   it('GET /api/health returns a stable health response', () => {
-    return request(app.getHttpServer()).get('/api/health').expect(200).expect({
-      status: 'ok',
-    });
+    return request(app.getHttpServer())
+      .get('/api/health')
+      .expect(200)
+      .expect({ data: { status: 'ok' } });
   });
 
   it('returns 404 for an unknown route', () => {
@@ -181,20 +209,31 @@ describe('API (e2e)', () => {
       })
       .expect(401);
 
-    expect(response.body).toEqual({
-      statusCode: 401,
-      message: 'Invalid credentials',
-      error: 'Unauthorized',
-    });
+    expectError(response, 'UNAUTHORIZED');
+    expect(getError(response).error).not.toHaveProperty('details');
     expect(response.headers['set-cookie'] ?? []).toEqual([]);
   });
 
+  it('reports validation failures with field-level details', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: 'invalid-email', password: '' })
+      .expect(400);
+
+    expectError(response, 'VALIDATION_FAILED');
+    expect(getError(response).error.details).toEqual(
+      expect.arrayContaining([
+        { field: 'email', code: 'INVALID_EMAIL' },
+        { field: 'password', code: 'REQUIRED' },
+      ]),
+    );
+  });
+
   it('rejects GET /api/auth/me without a bearer token', () => {
-    return request(app.getHttpServer()).get('/api/auth/me').expect(401).expect({
-      statusCode: 401,
-      message: 'Authentication required',
-      error: 'Unauthorized',
-    });
+    return request(app.getHttpServer())
+      .get('/api/auth/me')
+      .expect(401)
+      .then((response) => expectError(response, 'UNAUTHORIZED'));
   });
 
   it('returns the authenticated currentUser for a valid access token', () => {
@@ -202,7 +241,7 @@ describe('API (e2e)', () => {
       .get('/api/auth/me')
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(200)
-      .expect({ currentUser });
+      .expect({ data: { currentUser } });
   });
 
   it('rejects a tampered bearer token with a generic 401', () => {
@@ -215,11 +254,7 @@ describe('API (e2e)', () => {
       .get('/api/auth/me')
       .set('Authorization', `Bearer ${tamperedToken}`)
       .expect(401)
-      .expect({
-        statusCode: 401,
-        message: 'Authentication required',
-        error: 'Unauthorized',
-      });
+      .then((response) => expectError(response, 'UNAUTHORIZED'));
   });
 
   it('rotates a valid refresh token and returns only a new access token', async () => {
@@ -229,12 +264,12 @@ describe('API (e2e)', () => {
       .set('Cookie', session.refreshCookie)
       .expect(200);
 
-    const responseBody = response.body as unknown as {
+    const responseBody = response.body as SuccessResponse<{
       accessToken: unknown;
       currentUser?: unknown;
-    };
-    expect(typeof responseBody.accessToken).toBe('string');
-    expect(responseBody.currentUser).toBeUndefined();
+    }>;
+    expect(typeof responseBody.data.accessToken).toBe('string');
+    expect(responseBody.data.currentUser).toBeUndefined();
 
     const replacementCookie = getRefreshCookie(response);
     expect(replacementCookie).toContain('Path=/api/auth');
@@ -256,11 +291,8 @@ describe('API (e2e)', () => {
       .set('Cookie', session.refreshCookie)
       .expect(401);
 
-    expect(reuseResponse.body).toEqual({
-      statusCode: 401,
-      message: 'Invalid refresh token',
-      error: 'Unauthorized',
-    });
+    expectError(reuseResponse, 'UNAUTHORIZED');
+    expect(getError(reuseResponse).error).not.toHaveProperty('details');
     expectClearedRefreshCookie(reuseResponse);
 
     const currentTokenResponse = await request(app.getHttpServer())
@@ -268,7 +300,7 @@ describe('API (e2e)', () => {
       .set('Cookie', replacementCookie)
       .expect(401);
 
-    expect(getErrorMessage(currentTokenResponse)).toBe('Invalid refresh token');
+    expectError(currentTokenResponse, 'UNAUTHORIZED');
     expectClearedRefreshCookie(currentTokenResponse);
   });
 
@@ -319,17 +351,137 @@ describe('API (e2e)', () => {
     const absentCookieResponse = await request(app.getHttpServer())
       .post('/api/auth/refresh')
       .expect(401);
-    expect(getErrorMessage(absentCookieResponse)).toBe('Invalid refresh token');
+    expectError(absentCookieResponse, 'UNAUTHORIZED');
     expectClearedRefreshCookie(absentCookieResponse);
 
     const malformedCookieResponse = await request(app.getHttpServer())
       .post('/api/auth/refresh')
       .set('Cookie', 'refresh_token=malformed-token')
       .expect(401);
-    expect(getErrorMessage(malformedCookieResponse)).toBe(
-      'Invalid refresh token',
-    );
+    expectError(malformedCookieResponse, 'UNAUTHORIZED');
     expectClearedRefreshCookie(malformedCookieResponse);
+  });
+
+  it('lists only owned tasks with defaults and collection metadata', async () => {
+    const otherUser = await prisma.user.findUniqueOrThrow({
+      where: { email: 'admin@example.com' },
+    });
+    const ownTask = await prisma.task.create({
+      data: { ownerId: currentUser.id, title: 'Member task' },
+    });
+    const foreignTask = await prisma.task.create({
+      data: { ownerId: otherUser.id, title: 'Admin task' },
+    });
+    createdTaskIds.push(ownTask.id, foreignTask.id);
+
+    const response = await request(app.getHttpServer())
+      .get('/api/tasks')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+    const responseBody = response.body as TaskListResponseBody;
+
+    expect(responseBody.data).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: ownTask.id })]),
+    );
+    expect(responseBody.data).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: foreignTask.id })]),
+    );
+    expect(responseBody.meta).toEqual({
+      page: 1,
+      limit: 20,
+      totalItems: 1,
+      totalPages: 1,
+    });
+  });
+
+  it('returns 404 for foreign and missing task identifiers', async () => {
+    const otherUser = await prisma.user.findUniqueOrThrow({
+      where: { email: 'admin@example.com' },
+    });
+    const foreignTask = await prisma.task.create({
+      data: { ownerId: otherUser.id, title: 'Private task' },
+    });
+    createdTaskIds.push(foreignTask.id);
+
+    for (const id of [foreignTask.id, '00000000-0000-0000-0000-000000000000']) {
+      const response = await request(app.getHttpServer())
+        .get(`/api/tasks/${id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(404);
+      expectError(response, 'NOT_FOUND');
+    }
+  });
+
+  it('rejects a foreign owner filter and undeclared query parameters', async () => {
+    const otherUser = await prisma.user.findUniqueOrThrow({
+      where: { email: 'admin@example.com' },
+    });
+
+    const foreignOwnerResponse = await request(app.getHttpServer())
+      .get(`/api/tasks?ownerId=${otherUser.id}`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(403);
+    expectError(foreignOwnerResponse, 'FORBIDDEN');
+
+    const invalidQueryResponse = await request(app.getHttpServer())
+      .get('/api/tasks?unexpected=value')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(400);
+    expectError(invalidQueryResponse, 'VALIDATION_FAILED');
+  });
+
+  it('applies literal search, date filters, sorting, pagination, and bounds', async () => {
+    const matchingTask = await prisma.task.create({
+      data: {
+        ownerId: currentUser.id,
+        title: '100% report',
+        description: 'Quarterly status',
+        status: 'completed',
+        dueDate: new Date('2024-02-29T00:00:00.000Z'),
+      },
+    });
+    const nonMatchingTask = await prisma.task.create({
+      data: { ownerId: currentUser.id, title: '100 percent report' },
+    });
+    createdTaskIds.push(matchingTask.id, nonMatchingTask.id);
+
+    const response = await request(app.getHttpServer())
+      .get(
+        '/api/tasks?search=%25&status=completed&dueDate=2024-02-29&sort=title&page=1&limit=1',
+      )
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+    const responseBody = response.body as TaskListResponseBody;
+
+    expect(responseBody.data).toEqual([
+      expect.objectContaining({ id: matchingTask.id, dueDate: '2024-02-29' }),
+    ]);
+    expect(responseBody.meta).toEqual({
+      page: 1,
+      limit: 1,
+      totalItems: 1,
+      totalPages: 1,
+    });
+
+    const invalidDateResponse = await request(app.getHttpServer())
+      .get('/api/tasks?dueDate=2024-02-30')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(400);
+    expectError(invalidDateResponse, 'VALIDATION_FAILED');
+
+    const invalidLimitResponse = await request(app.getHttpServer())
+      .get('/api/tasks?limit=101')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(400);
+    expectError(invalidLimitResponse, 'VALIDATION_FAILED');
+  });
+
+  afterEach(async () => {
+    if (createdTaskIds.length) {
+      await prisma.task.deleteMany({
+        where: { id: { in: createdTaskIds.splice(0) } },
+      });
+    }
   });
 
   afterAll(async () => {

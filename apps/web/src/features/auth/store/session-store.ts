@@ -1,15 +1,21 @@
 import { createStore } from 'zustand/vanilla'
 import type { StoreApi } from 'zustand/vanilla'
 import { ApiError } from '../../../core/http/api-client'
+import type { ApiResponse } from '../../../core/http/api-client'
 import type { AuthRepository } from '../domain/auth-repository'
 import type { CurrentUser, LoginInput, SessionState } from '../domain/auth-models'
 import type { SessionStore } from './session-state'
 
 type Requester = <T>(path: string, init?: RequestInit) => Promise<T>
+type ResponseRequester = <T>(path: string, init?: RequestInit) => Promise<ApiResponse<T>>
 
 export type SessionStoreApi = StoreApi<SessionStore>
 
-export function createSessionStore(auth: AuthRepository, request: Requester = defaultRequest): SessionStoreApi {
+export function createSessionStore(
+  auth: AuthRepository,
+  request: Requester = defaultRequest,
+  requestResponse: ResponseRequester = defaultRequestResponse,
+): SessionStoreApi {
   let token: string | undefined
   let currentUser: CurrentUser | undefined
   let epoch = 0
@@ -95,10 +101,14 @@ export function createSessionStore(auth: AuthRepository, request: Requester = de
       return refreshPromise
     }
 
-    const requestWithRefresh = async <T>(path: string, init: RequestInit = {}): Promise<T> => {
+    const requestWithRefresh = async <T>(
+      requester: Requester,
+      path: string,
+      init: RequestInit = {},
+    ): Promise<T> => {
       const sentToken = token
       const sentEpoch = epoch
-      const send = (value: string | undefined): Promise<T> => request<T>(path, {
+      const send = (value: string | undefined): Promise<T> => requester<T>(path, {
         ...init,
         headers: {
           ...Object.fromEntries(new Headers(init.headers)),
@@ -115,12 +125,18 @@ export function createSessionStore(auth: AuthRepository, request: Requester = de
       }
     }
 
+    const requestData = <T>(path: string, init?: RequestInit) =>
+      requestWithRefresh<T>(request, path, init)
+    const requestEnvelope = <T>(path: string, init?: RequestInit) =>
+      requestWithRefresh(requestResponse as Requester, path, init) as Promise<ApiResponse<T>>
+
     return {
       snapshot: { status: 'bootstrap-loading' },
       bootstrap,
       login,
       logout,
-      request: requestWithRefresh,
+      request: requestData,
+      requestResponse: requestEnvelope,
     }
   })
 }
@@ -130,4 +146,11 @@ const defaultRequest: Requester = async <T>(path: string, init?: RequestInit) =>
   if (!response.ok) throw new ApiError(response.status)
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
+}
+
+const defaultRequestResponse: ResponseRequester = async <T>(path: string, init?: RequestInit) => {
+  const response = await fetch(path, { ...init, credentials: 'include' })
+  if (!response.ok) throw new ApiError(response.status)
+  if (response.status === 204) return { data: undefined as T }
+  return response.json() as Promise<ApiResponse<T>>
 }

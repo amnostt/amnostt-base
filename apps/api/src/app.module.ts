@@ -4,6 +4,7 @@ import { ConfigModule } from '@nestjs/config';
 import { HealthController } from './health.controller';
 import { PrismaModule } from './prisma.module';
 import { AuthModule } from './auth/auth.module';
+import { TasksModule } from './tasks/tasks.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { AuthModule } from './auth/auth.module';
     }),
     PrismaModule,
     AuthModule,
+    TasksModule,
   ],
   controllers: [HealthController],
 })

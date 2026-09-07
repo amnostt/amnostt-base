@@ -14,6 +14,7 @@ const memberPermissionCodes = [
 ] as const;
 
 const adminPermissionCodes = [
+  'tasks:read:own',
   'tasks:create:any',
   'tasks:read:any',
   'tasks:update:any',

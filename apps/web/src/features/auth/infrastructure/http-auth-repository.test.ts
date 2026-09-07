@@ -5,13 +5,13 @@ import { HttpAuthRepository } from './http-auth-repository'
 const user = { id: '1', email: 'a@example.com', name: 'A', role: 'user', permissions: [] }
 
 describe('HttpAuthRepository', () => {
-  it('maps login and authentication lifecycle operations to the API contract', async () => {
+  it('maps payload-only responses through the authentication lifecycle', async () => {
     const request = vi.fn()
       .mockResolvedValueOnce({ accessToken: 'token', currentUser: user })
       .mockResolvedValueOnce({ accessToken: 'refresh-token' })
       .mockResolvedValueOnce({ currentUser: user })
       .mockResolvedValueOnce(undefined)
-    const repository = new HttpAuthRepository({ request: request as ApiClient['request'] })
+    const repository = new HttpAuthRepository({ request: request as ApiClient['request'], requestResponse: vi.fn() })
 
     await expect(repository.login({ email: 'a@example.com', password: 'secret' })).resolves.toEqual({
       accessToken: 'token',

@@ -208,4 +208,20 @@ describe('SessionStore', () => {
     await store.getState().bootstrap()
     expect(store.getState().snapshot).toEqual({ status: 'unauthenticated' })
   })
+
+  it('refreshes from an enriched unauthorized error without reading its message', async () => {
+    const auth = api({ refresh: vi.fn().mockResolvedValue('new-token') })
+    const request = vi.fn()
+      .mockRejectedValueOnce(new ApiError(401, 'UNAUTHORIZED', [
+        { field: 'session', code: 'EXPIRED' },
+      ], 'backend-specific wording'))
+      .mockResolvedValueOnce({ value: 'retried' })
+    const store = createSessionStore(auth, async <T>(path: string, init?: RequestInit) => request(path, init) as Promise<T>)
+
+    await store.getState().login({ email: 'a@example.com', password: 'secret' })
+
+    await expect(store.getState().request('/data')).resolves.toEqual({ value: 'retried' })
+    expect(auth.refresh).toHaveBeenCalledOnce()
+    expect(request).toHaveBeenCalledTimes(2)
+  })
 })
