@@ -1,13 +1,13 @@
-import type { ApiClient } from '../../../core/http/api-client'
-import type { AuthRepository } from '../domain/auth-repository'
-import type { LoginInput, Session } from '../domain/auth-models'
-import type { LoginResponse, MeResponse, RefreshResponse } from './auth-dtos'
+import type { ApiClient } from '../../../core/http/api-client';
+import type { AuthRepository } from '../domain/auth-repository';
+import type { LoginInput, Session } from '../domain/auth-models';
+import type { LoginResponse, MeResponse, RefreshResponse } from './auth-dtos';
 
 export class HttpAuthRepository implements AuthRepository {
-  private readonly client: ApiClient
+  private readonly client: ApiClient;
 
   constructor(client: ApiClient) {
-    this.client = client
+    this.client = client;
   }
 
   async login(input: LoginInput): Promise<Session> {
@@ -15,31 +15,37 @@ export class HttpAuthRepository implements AuthRepository {
       method: 'POST',
       body: JSON.stringify(input),
       headers: { 'Content-Type': 'application/json' },
-    })
-    return { accessToken: response.accessToken, currentUser: response.currentUser }
+    });
+    return {
+      accessToken: response.accessToken,
+      currentUser: response.currentUser,
+    };
   }
 
   async restore(): Promise<Session> {
-    const accessToken = await this.refresh()
-    const { currentUser } = await this.me(accessToken)
-    return { accessToken, currentUser }
+    const accessToken = await this.refresh();
+    const { currentUser } = await this.me(accessToken);
+    return { accessToken, currentUser };
   }
 
   async refresh(): Promise<string> {
-    const { accessToken } = await this.client.request<RefreshResponse>('/auth/refresh', {
-      method: 'POST',
-    })
-    return accessToken
+    const { accessToken } = await this.client.request<RefreshResponse>(
+      '/auth/refresh',
+      {
+        method: 'POST',
+      },
+    );
+    return accessToken;
   }
 
   async logout(): Promise<void> {
-    await this.client.request<void>('/auth/logout', { method: 'POST' })
+    await this.client.request<void>('/auth/logout', { method: 'POST' });
   }
 
   private me(token: string): Promise<MeResponse> {
     return this.client.request<MeResponse>('/auth/me', {
       method: 'GET',
       headers: { Authorization: `Bearer ${token}` },
-    })
+    });
   }
 }

@@ -1,5 +1,5 @@
 interface ToastProps {
-  message: string
+  message: string;
 }
 
 export function Toast({ message }: ToastProps) {
@@ -12,5 +12,5 @@ export function Toast({ message }: ToastProps) {
     >
       {message}
     </div>
-  )
+  );
 }

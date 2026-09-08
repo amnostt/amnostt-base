@@ -1,14 +1,14 @@
-import type { CurrentUser } from '../domain/auth-models'
+import type { CurrentUser } from '../domain/auth-models';
 
 export interface LoginResponse {
-  accessToken: string
-  currentUser: CurrentUser
+  accessToken: string;
+  currentUser: CurrentUser;
 }
 
 export interface MeResponse {
-  currentUser: CurrentUser
+  currentUser: CurrentUser;
 }
 
 export interface RefreshResponse {
-  accessToken: string
+  accessToken: string;
 }

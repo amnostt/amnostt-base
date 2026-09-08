@@ -1,30 +1,33 @@
-import type { ApiResponse } from '../../core/http/api-client'
-import type { Task } from './task-models'
+import type { ApiResponse } from '../../core/http/api-client';
+import type { Task } from './task-models';
 
 export interface CreateTaskInput {
-  title: string
-  description?: string
-  status: Task['status']
-  dueDate?: string
+  title: string;
+  description?: string;
+  status: Task['status'];
+  dueDate?: string;
 }
 
 export interface UpdateTaskInput {
-  title: string
-  description?: string | null
-  status: Task['status']
-  dueDate?: string | null
+  title: string;
+  description?: string | null;
+  status: Task['status'];
+  dueDate?: string | null;
 }
 
 export interface TaskRepository {
-  list(query: string): Promise<ApiResponse<Task[]>>
+  list(query: string): Promise<ApiResponse<Task[]>>;
 }
 
 export function createTaskRepository(
-  requestResponse: <T>(path: string, init?: RequestInit) => Promise<ApiResponse<T>>,
+  requestResponse: <T>(
+    path: string,
+    init?: RequestInit,
+  ) => Promise<ApiResponse<T>>,
 ): TaskRepository {
   return {
     list: (query) => requestResponse<Task[]>(`/tasks${query}`),
-  }
+  };
 }
 
 export function createTask(
@@ -35,7 +38,7 @@ export function createTask(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
-  })
+  });
 }
 
 export function updateTask(
@@ -47,12 +50,12 @@ export function updateTask(
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
-  })
+  });
 }
 
 export function deleteTask(
   request: <T>(path: string, init?: RequestInit) => Promise<T>,
   id: string,
 ): Promise<void> {
-  return request<void>(`/tasks/${id}`, { method: 'DELETE' })
+  return request<void>(`/tasks/${id}`, { method: 'DELETE' });
 }

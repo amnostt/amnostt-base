@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest';
 import {
   parseTaskQuery,
   serializeTaskQuery,
   updateTaskQuery,
-} from './task-query'
+} from './task-query';
 
 describe('task query state', () => {
   it('uses stable defaults and preserves only allowlisted values', () => {
@@ -15,26 +15,26 @@ describe('task query state', () => {
       sort: '-createdAt',
       page: 1,
       limit: 20,
-    })
-  })
+    });
+  });
 
   it('round-trips rich query state in deterministic URL order', () => {
     const state = parseTaskQuery(
       '?search=Report&status=completed&ownerId=member-id&dueDate=2024-02-29&sort=-title&page=2&limit=50',
-    )
+    );
 
     expect(serializeTaskQuery(state)).toBe(
       '?search=Report&status=completed&ownerId=member-id&dueDate=2024-02-29&sort=-title&page=2&limit=50',
-    )
-  })
+    );
+  });
 
   it('updates one criterion while resetting pagination and omitting defaults', () => {
     expect(
       updateTaskQuery('?search=report&page=4&limit=50', {
         status: 'pending',
       }),
-    ).toBe('?search=report&status=pending&limit=50')
+    ).toBe('?search=report&status=pending&limit=50');
 
-    expect(updateTaskQuery('?status=pending&page=3', { status: '' })).toBe('')
-  })
-})
+    expect(updateTaskQuery('?status=pending&page=3', { status: '' })).toBe('');
+  });
+});

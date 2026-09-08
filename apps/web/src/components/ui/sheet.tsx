@@ -1,18 +1,22 @@
-import type { ReactNode } from 'react'
+import type { ReactNode } from 'react';
 
 interface SheetProps {
-  open: boolean
-  title: string
-  ariaLabel: string
-  children: ReactNode
+  open: boolean;
+  title: string;
+  ariaLabel: string;
+  children: ReactNode;
 }
 
 export function Sheet({ open, title, ariaLabel, children }: SheetProps) {
-  if (!open) return null
+  if (!open) return null;
 
   return (
     <>
-      <div data-slot="sheet-overlay" aria-hidden="true" className="fixed inset-0 z-40 bg-black/50" />
+      <div
+        data-slot="sheet-overlay"
+        aria-hidden="true"
+        className="fixed inset-0 z-40 bg-black/50"
+      />
       <div
         role="dialog"
         aria-modal="true"
@@ -25,5 +29,5 @@ export function Sheet({ open, title, ariaLabel, children }: SheetProps) {
         {children}
       </div>
     </>
-  )
+  );
 }
