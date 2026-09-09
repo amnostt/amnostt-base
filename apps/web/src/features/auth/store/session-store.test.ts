@@ -17,7 +17,10 @@ const api = (overrides: Partial<AuthRepository> = {}): AuthRepository => ({
     .mockResolvedValue({ accessToken: 'login-token', currentUser: user }),
   register: vi
     .fn()
-    .mockResolvedValue({ accessToken: 'registration-token', currentUser: user }),
+    .mockResolvedValue({
+      accessToken: 'registration-token',
+      currentUser: user,
+    }),
   restore: vi
     .fn()
     .mockResolvedValue({ accessToken: 'restore-token', currentUser: user }),
@@ -77,7 +80,7 @@ describe('SessionStore', () => {
     expect(auth.restore).toHaveBeenCalledOnce();
   });
 
-  it('changes the password through the repository while retaining the session token', async () => {
+  it('changes the password through the authenticated request boundary while retaining the session token', async () => {
     const auth = api();
     const request = vi.fn().mockResolvedValue({ value: 1 });
     const store = createSessionStore(
@@ -93,21 +96,58 @@ describe('SessionStore', () => {
       currentPassword: 'current-password',
       newPassword: 'a'.repeat(12),
     });
-    await expect(store.getState().request('/protected')).resolves.toEqual({
-      value: 1,
-    });
-
-    expect(auth.changePassword).toHaveBeenCalledWith({
-      currentPassword: 'current-password',
-      newPassword: 'a'.repeat(12),
-    });
     expect(store.getState().snapshot).toEqual({
       status: 'authenticated',
       user,
     });
-    expect(request.mock.calls[0][1]?.headers).toEqual({
-      Authorization: 'Bearer login-token',
-    });
+    expect(request.mock.calls[0][0]).toBe('/auth/password');
+    expect(request.mock.calls[0][1]?.method).toBe('POST');
+    expect(request.mock.calls[0][1]?.body).toBe(
+      JSON.stringify({
+        currentPassword: 'current-password',
+        newPassword: 'a'.repeat(12),
+      }),
+    );
+    expect(
+      new Headers(request.mock.calls[0][1]?.headers).get('content-type'),
+    ).toBe('application/json');
+    expect(
+      new Headers(request.mock.calls[0][1]?.headers).get('authorization'),
+    ).toBe('Bearer login-token');
+  });
+
+  it('does not refresh a password request rejected for an invalid current password', async () => {
+    const auth = api();
+    const request = vi
+      .fn()
+      .mockRejectedValue(
+        new ApiError(
+          401,
+          'UNAUTHORIZED',
+          undefined,
+          'Invalid current password',
+        ),
+      );
+    const store = createSessionStore(
+      auth,
+      async <T>(path: string, init?: RequestInit) =>
+        request(path, init) as Promise<T>,
+    );
+    await store
+      .getState()
+      .login({ email: 'a@example.com', password: 'secret' });
+
+    await expect(
+      store.getState().changePassword({
+        currentPassword: 'current-password',
+        newPassword: 'a'.repeat(12),
+      }),
+    ).rejects.toThrow('Invalid current password');
+
+    expect(auth.refresh).not.toHaveBeenCalled();
+    expect(
+      new Headers(request.mock.calls[0][1]?.headers).get('authorization'),
+    ).toBe('Bearer login-token');
   });
 
   it('shares refresh, retries each request once, and handles a changed token race', async () => {

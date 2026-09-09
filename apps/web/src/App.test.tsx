@@ -94,7 +94,9 @@ describe('App session integration', () => {
     const formUser = userEvent.setup();
     await formUser.type(screen.getByLabelText('Email'), 'ada@example.com');
     await formUser.type(screen.getByLabelText('Password'), 'a'.repeat(12));
-    await formUser.click(screen.getByRole('button', { name: 'Create account' }));
+    await formUser.click(
+      screen.getByRole('button', { name: 'Create account' }),
+    );
 
     expect(await screen.findByText('Role: Admin')).toBeInTheDocument();
     expect(api.register).toHaveBeenCalledWith({
@@ -114,7 +116,9 @@ describe('App session integration', () => {
     const formUser = userEvent.setup();
     await formUser.type(screen.getByLabelText('Email'), 'ada@example.com');
     await formUser.type(screen.getByLabelText('Password'), 'a'.repeat(12));
-    await formUser.click(screen.getByRole('button', { name: 'Create account' }));
+    await formUser.click(
+      screen.getByRole('button', { name: 'Create account' }),
+    );
 
     expect(
       await screen.findByText('An account with this email already exists.'),
@@ -124,7 +128,8 @@ describe('App session integration', () => {
   it('changes the password without replacing the authenticated session', async () => {
     window.history.pushState({}, '', '/password');
     const api = auth();
-    renderIntegration(api);
+    const request = vi.fn().mockResolvedValue(undefined);
+    renderWithRequest(api, (path, init) => request(path, init));
 
     expect(
       await screen.findByRole('heading', { name: 'Change password' }),
@@ -134,28 +139,31 @@ describe('App session integration', () => {
       screen.getByLabelText('Current password'),
       'current-password',
     );
-    await formUser.type(
-      screen.getByLabelText('New password'),
-      'a'.repeat(12),
-    );
+    await formUser.type(screen.getByLabelText('New password'), 'a'.repeat(12));
     await formUser.click(
       screen.getByRole('button', { name: 'Change password' }),
     );
 
-    expect(api.changePassword).toHaveBeenCalledWith({
-      currentPassword: 'current-password',
-      newPassword: 'a'.repeat(12),
-    });
+    expect(request).toHaveBeenCalledWith(
+      '/auth/password',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          currentPassword: 'current-password',
+          newPassword: 'a'.repeat(12),
+        }),
+      }),
+    );
     expect(await screen.findByText('Password updated.')).toBeInTheDocument();
-    expect(
-      screen.getByRole('link', { name: 'Home' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Home' })).toBeInTheDocument();
   });
 
   it('shows a throttling registration error without authenticating', async () => {
     window.history.pushState({}, '', '/register');
     const api = unauth({
-      register: vi.fn().mockRejectedValue(new ApiError(429, 'TOO_MANY_REQUESTS')),
+      register: vi
+        .fn()
+        .mockRejectedValue(new ApiError(429, 'TOO_MANY_REQUESTS')),
     });
     renderIntegration(api);
 
@@ -163,10 +171,14 @@ describe('App session integration', () => {
     const formUser = userEvent.setup();
     await formUser.type(screen.getByLabelText('Email'), 'ada@example.com');
     await formUser.type(screen.getByLabelText('Password'), 'a'.repeat(12));
-    await formUser.click(screen.getByRole('button', { name: 'Create account' }));
+    await formUser.click(
+      screen.getByRole('button', { name: 'Create account' }),
+    );
 
     expect(
-      await screen.findByText('Too many registration attempts. Please try again later.'),
+      await screen.findByText(
+        'Too many registration attempts. Please try again later.',
+      ),
     ).toBeInTheDocument();
   });
 

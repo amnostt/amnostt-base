@@ -17,8 +17,14 @@ export function PasswordChangeForm() {
     event.preventDefault();
     setError('');
     setSuccess(false);
-    if (!currentPassword || newPassword.length < 12 || newPassword.length > 128) {
-      setError('Enter your current password and a new password between 12 and 128 characters.');
+    if (
+      !currentPassword ||
+      newPassword.length < 12 ||
+      newPassword.length > 128
+    ) {
+      setError(
+        'Enter your current password and a new password between 12 and 128 characters.',
+      );
       return;
     }
 
@@ -29,7 +35,7 @@ export function PasswordChangeForm() {
       setNewPassword('');
       setSuccess(true);
     } catch (cause) {
-      if (cause instanceof ApiError && cause.status === 401) {
+      if (isInvalidCurrentPasswordError(cause)) {
         setError('Your current password is incorrect.');
       } else {
         setError('Unable to change your password. Please try again.');
@@ -77,5 +83,14 @@ export function PasswordChangeForm() {
         </Button>
       </form>
     </section>
+  );
+}
+
+function isInvalidCurrentPasswordError(cause: unknown): cause is ApiError {
+  return (
+    cause instanceof ApiError &&
+    cause.status === 401 &&
+    cause.code === 'UNAUTHORIZED' &&
+    cause.message.trim().toLowerCase() === 'invalid current password'
   );
 }

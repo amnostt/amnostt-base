@@ -109,7 +109,16 @@ export function createSessionStore(
 
     const changePassword = async (input: ChangePasswordInput) => {
       if (get().snapshot.status !== 'authenticated') return;
-      await auth.changePassword(input);
+      await requestWithRefresh<void>(
+        request,
+        '/auth/password',
+        {
+          method: 'POST',
+          body: JSON.stringify(input),
+          headers: { 'Content-Type': 'application/json' },
+        },
+        shouldRefreshPasswordChange,
+      );
     };
 
     const logout = async () => {
@@ -162,6 +171,7 @@ export function createSessionStore(
       requester: Requester,
       path: string,
       init: RequestInit = {},
+      shouldRefresh: (error: ApiError) => boolean = () => true,
     ): Promise<T> => {
       const sentToken = token;
       const sentEpoch = epoch;
@@ -176,7 +186,12 @@ export function createSessionStore(
       try {
         return await send(sentToken);
       } catch (error) {
-        if (!(error instanceof ApiError) || error.status !== 401 || !sentToken)
+        if (
+          !(error instanceof ApiError) ||
+          error.status !== 401 ||
+          !sentToken ||
+          !shouldRefresh(error)
+        )
           throw error;
         await refresh(sentToken, sentEpoch);
         if (!token) throw error;
@@ -202,6 +217,13 @@ export function createSessionStore(
       requestResponse: requestEnvelope,
     };
   });
+}
+
+function shouldRefreshPasswordChange(error: ApiError): boolean {
+  return !(
+    error.code === 'UNAUTHORIZED' &&
+    error.message.trim().toLowerCase() === 'invalid current password'
+  );
 }
 
 const defaultRequest: Requester = async <T>(
