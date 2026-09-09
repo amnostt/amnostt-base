@@ -424,7 +424,6 @@ export class AuthService {
     );
 
     if (rotation.count !== 1) {
-      await this.revokeSession(payload.sid, payload.sub);
       throw new UnauthorizedException('Invalid refresh token');
     }
 

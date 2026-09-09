@@ -21,6 +21,7 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { RegistrationThrottleGuard } from './registration-throttle.guard';
+import { LoginThrottleGuard } from './login-throttle.guard';
 
 const REFRESH_COOKIE_NAME = 'refresh_token';
 const REFRESH_COOKIE_PATH = '/api/auth';
@@ -50,6 +51,7 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(LoginThrottleGuard)
   async login(
     @Body() loginDto: LoginDto,
     @Res({ passthrough: true }) response: Response,

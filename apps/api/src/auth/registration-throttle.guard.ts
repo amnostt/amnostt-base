@@ -15,6 +15,22 @@ interface RegistrationTracker {
   email: string;
 }
 
+function selectRegistrationThrottlers(
+  options: ThrottlerModuleOptions,
+): ThrottlerModuleOptions {
+  const isRegistrationThrottler = ({ name }: { name?: string }): boolean =>
+    name?.startsWith('registration-') ?? false;
+
+  if (Array.isArray(options)) {
+    return options.filter(isRegistrationThrottler);
+  }
+
+  return {
+    ...options,
+    throttlers: options.throttlers.filter(isRegistrationThrottler),
+  };
+}
+
 @Injectable()
 export class RegistrationThrottleGuard extends ThrottlerGuard {
   constructor(
@@ -22,7 +38,7 @@ export class RegistrationThrottleGuard extends ThrottlerGuard {
     @InjectThrottlerStorage() storage: ThrottlerStorage,
     reflector: Reflector,
   ) {
-    super(options, storage, reflector);
+    super(selectRegistrationThrottlers(options), storage, reflector);
   }
 
   protected getTracker(req: Record<string, unknown>): Promise<string> {

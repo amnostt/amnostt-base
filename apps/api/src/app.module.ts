@@ -53,6 +53,20 @@ function getPositiveInteger(
               'AUTH_REGISTRATION_EMAIL_TTL_SECONDS',
             ) * 1000,
         },
+        {
+          name: 'login-ip',
+          limit: getPositiveInteger(configService, 'AUTH_LOGIN_IP_LIMIT'),
+          ttl:
+            getPositiveInteger(configService, 'AUTH_LOGIN_IP_TTL_SECONDS') *
+            1000,
+        },
+        {
+          name: 'login-email',
+          limit: getPositiveInteger(configService, 'AUTH_LOGIN_EMAIL_LIMIT'),
+          ttl:
+            getPositiveInteger(configService, 'AUTH_LOGIN_EMAIL_TTL_SECONDS') *
+            1000,
+        },
       ],
     }),
     PrismaModule,

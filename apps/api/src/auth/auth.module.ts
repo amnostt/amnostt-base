@@ -6,6 +6,7 @@ import { AuthService } from './auth.service';
 import { AuthTokenService } from './auth-token.service';
 import { AuthorizationService } from './authorization.service';
 import { RegistrationThrottleGuard } from './registration-throttle.guard';
+import { LoginThrottleGuard } from './login-throttle.guard';
 
 @Module({
   imports: [JwtModule.register({})],
@@ -16,6 +17,7 @@ import { RegistrationThrottleGuard } from './registration-throttle.guard';
     AuthGuard,
     AuthorizationService,
     RegistrationThrottleGuard,
+    LoginThrottleGuard,
   ],
   exports: [AuthService, AuthTokenService, AuthGuard, AuthorizationService],
 })

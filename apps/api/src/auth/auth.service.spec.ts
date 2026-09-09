@@ -745,16 +745,28 @@ describe('AuthService', () => {
       });
     });
 
-    it('should revoke the session when an atomic rotation loses a race', async () => {
-      updateManySession
-        .mockResolvedValueOnce({ count: 0 })
-        .mockResolvedValueOnce({ count: 1 });
+    it('should reject a losing concurrent rotation without revoking the winning session', async () => {
+      updateManySession.mockResolvedValueOnce({ count: 0 });
 
       await expect(service.refresh('refresh-token')).rejects.toThrow(
         new UnauthorizedException('Invalid refresh token'),
       );
 
-      expect(updateManySession).toHaveBeenCalledTimes(2);
+      expect(updateManySession).toHaveBeenCalledTimes(1);
+      expect(updateManySession).toHaveBeenCalledWith({
+        where: {
+          id: 'session-id',
+          userId: 'user-id',
+          refreshTokenHash: 'stored-refresh-token-hash',
+          revokedAt: null,
+          expiresAt: { gt: expect.any(Date) as Date },
+          user: { isActive: true },
+        },
+        data: {
+          refreshTokenHash: 'replacement-refresh-token-hash',
+          expiresAt: new Date('2099-01-08T00:00:00.000Z'),
+        },
+      });
     });
 
     it.each([undefined, 'invalid-refresh-token'])(

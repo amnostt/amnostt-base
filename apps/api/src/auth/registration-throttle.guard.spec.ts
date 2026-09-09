@@ -78,4 +78,23 @@ describe('RegistrationThrottleGuard', () => {
       guard.canActivate(contextFor('mixed@example.com')),
     ).rejects.toBeInstanceOf(ThrottlerException);
   });
+
+  it('does not consume login throttler buckets', async () => {
+    const guard = new RegistrationThrottleGuard(
+      [
+        { name: 'login-ip', limit: 1, ttl: 60_000 },
+        { name: 'registration-ip', limit: 100, ttl: 60_000 },
+      ],
+      new MemoryStorage(),
+      reflector(),
+    );
+    await guard.onModuleInit();
+
+    await expect(
+      guard.canActivate(contextFor('first@example.com')),
+    ).resolves.toBe(true);
+    await expect(
+      guard.canActivate(contextFor('second@example.com')),
+    ).resolves.toBe(true);
+  });
 });
