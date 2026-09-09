@@ -16,7 +16,7 @@ export interface UpdateTaskInput {
 }
 
 export interface TaskRepository {
-  list(query: string): Promise<ApiResponse<Task[]>>;
+  list(query: string, signal?: AbortSignal): Promise<ApiResponse<Task[]>>;
 }
 
 export function createTaskRepository(
@@ -26,7 +26,8 @@ export function createTaskRepository(
   ) => Promise<ApiResponse<T>>,
 ): TaskRepository {
   return {
-    list: (query) => requestResponse<Task[]>(`/tasks${query}`),
+    list: (query, signal) =>
+      requestResponse<Task[]>(`/tasks${query}`, { signal }),
   };
 }
 

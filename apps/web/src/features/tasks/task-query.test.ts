@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { isValidCalendarDate } from './calendar-date';
 import {
   parseTaskQuery,
   serializeTaskQuery,
@@ -36,5 +37,19 @@ describe('task query state', () => {
     ).toBe('?search=report&status=pending&limit=50');
 
     expect(updateTaskQuery('?status=pending&page=3', { status: '' })).toBe('');
+  });
+});
+
+describe('calendar-date validation', () => {
+  it('accepts real ISO calendar dates', () => {
+    expect(isValidCalendarDate('2024-02-29')).toBe(true);
+    expect(isValidCalendarDate('2026-09-09')).toBe(true);
+  });
+
+  it('rejects malformed and impossible calendar dates', () => {
+    expect(isValidCalendarDate('2023-02-29')).toBe(false);
+    expect(isValidCalendarDate('2026-04-31')).toBe(false);
+    expect(isValidCalendarDate('2026-9-09')).toBe(false);
+    expect(isValidCalendarDate('2026-09-09T00:00:00Z')).toBe(false);
   });
 });

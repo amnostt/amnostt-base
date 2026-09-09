@@ -44,6 +44,7 @@ export function TaskListPage() {
   const [deletingId, setDeletingId] = useState<string>();
   const [deleteError, setDeleteError] = useState<string>();
   const deletingRef = useRef<string | undefined>(undefined);
+  const previousQueryRef = useRef<string | undefined>(undefined);
   const queryState = parseTaskQuery(location.search);
   const query = serializeTaskQuery(queryState);
   const toast = (location.state as { toast?: string } | null)?.toast;
@@ -54,25 +55,48 @@ export function TaskListPage() {
 
   useEffect(() => {
     if (!userId) return;
+
+    const previousQuery = previousQueryRef.current;
+    previousQueryRef.current = query;
+    const searchChanged =
+      previousQuery !== undefined &&
+      parseTaskQuery(previousQuery).search !== queryState.search;
+    const controller = new AbortController();
     let active = true;
-    void createTaskRepository(requestResponse)
-      .list(query)
-      .then((response) => {
-        if (active)
-          setState({
-            status: 'ready',
-            tasks: response.data,
-            totalItems: response.meta?.totalItems ?? response.data.length,
-            totalPages: response.meta?.totalPages ?? 0,
+    const timeout = window.setTimeout(
+      () => {
+        void createTaskRepository(requestResponse)
+          .list(query, controller.signal)
+          .then((response) => {
+            if (active && !controller.signal.aborted)
+              setState({
+                status: 'ready',
+                tasks: response.data,
+                totalItems: response.meta?.totalItems ?? response.data.length,
+                totalPages: response.meta?.totalPages ?? 0,
+              });
+          })
+          .catch(() => {
+            if (active && !controller.signal.aborted)
+              setState({ status: 'error' });
           });
-      })
-      .catch(() => {
-        if (active) setState({ status: 'error' });
-      });
+      },
+      searchChanged ? 300 : 0,
+    );
+
     return () => {
       active = false;
+      window.clearTimeout(timeout);
+      controller.abort();
     };
-  }, [attempt, location.pathname, query, requestResponse, userId]);
+  }, [
+    attempt,
+    location.pathname,
+    query,
+    queryState.search,
+    requestResponse,
+    userId,
+  ]);
 
   useEffect(() => {
     if (!id) return;
@@ -185,7 +209,14 @@ export function TaskListPage() {
         </>
       )}
       {location.pathname === '/tasks/new' && (
-        <Sheet open title="Create task" ariaLabel="Create task panel">
+        <Sheet
+          open
+          title="Create task"
+          ariaLabel="Create task panel"
+          onOpenChange={(open) => {
+            if (!open) navigate(`/tasks${query}`);
+          }}
+        >
           <TaskForm
             request={request}
             onClose={() => navigate(`/tasks${query}`)}
@@ -196,7 +227,14 @@ export function TaskListPage() {
         </Sheet>
       )}
       {id && location.pathname.endsWith('/edit') && (
-        <Sheet open title="Edit task" ariaLabel="Edit task panel">
+        <Sheet
+          open
+          title="Edit task"
+          ariaLabel="Edit task panel"
+          onOpenChange={(open) => {
+            if (!open) navigate(`/tasks${query}`);
+          }}
+        >
           {editState.status === 'error' && editState.id === id && (
             <p role="alert">Unable to load task.</p>
           )}
@@ -224,6 +262,9 @@ export function TaskListPage() {
           open
           title={`Delete task "${deleteTarget.title}" permanently?`}
           description="This action cannot be undone."
+          onOpenChange={(open) => {
+            if (!open && !deletingId) setDeleteTarget(undefined);
+          }}
         >
           {deleteError && <p role="alert">{deleteError}</p>}
           <Button

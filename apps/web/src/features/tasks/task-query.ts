@@ -1,4 +1,5 @@
 import type { TaskStatus } from './task-models';
+import { isValidCalendarDate } from './calendar-date';
 
 export const TASK_QUERY_DEFAULTS = {
   search: '',
@@ -112,18 +113,4 @@ function parseBoundedInteger(
   if (!value || !/^\d+$/.test(value)) return fallback;
   const parsed = Number(value);
   return parsed >= 1 && parsed <= max ? parsed : fallback;
-}
-
-function isValidCalendarDate(value: string): boolean {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) return false;
-
-  const date = new Date(
-    Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])),
-  );
-  return (
-    date.getUTCFullYear() === Number(match[1]) &&
-    date.getUTCMonth() === Number(match[2]) - 1 &&
-    date.getUTCDate() === Number(match[3])
-  );
 }

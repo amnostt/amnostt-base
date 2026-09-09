@@ -272,7 +272,10 @@ describe('task create route', () => {
     );
     expect(requestResponse).toHaveBeenLastCalledWith(
       '/tasks?search=Report&status=completed&sort=-title&page=2&limit=10',
-      { headers: { Authorization: 'Bearer token' } },
+      expect.objectContaining({
+        headers: { Authorization: 'Bearer token' },
+        signal: expect.any(AbortSignal),
+      }),
     );
   });
 });

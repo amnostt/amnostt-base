@@ -1,10 +1,13 @@
+import { useId } from 'react';
 import type { ReactNode } from 'react';
+import { trapModalFocus, useModalFocus } from './modal';
 
 interface AlertDialogProps {
   open: boolean;
   title: string;
   description: string;
   children: ReactNode;
+  onOpenChange: (open: boolean) => void;
 }
 
 export function AlertDialog({
@@ -12,18 +15,25 @@ export function AlertDialog({
   title,
   description,
   children,
+  onOpenChange,
 }: AlertDialogProps) {
+  const titleId = useId();
+  const descriptionId = useId();
+  const dialogRef = useModalFocus(open, () => onOpenChange(false));
   if (!open) return null;
 
   return (
     <div
+      ref={dialogRef}
       role="dialog"
       aria-modal="true"
-      aria-labelledby="alert-dialog-title"
-      aria-describedby="alert-dialog-description"
+      aria-labelledby={titleId}
+      aria-describedby={descriptionId}
+      tabIndex={-1}
+      onKeyDown={(event) => trapModalFocus(event, dialogRef.current)}
     >
-      <h2 id="alert-dialog-title">{title}</h2>
-      <p id="alert-dialog-description">{description}</p>
+      <h2 id={titleId}>{title}</h2>
+      <p id={descriptionId}>{description}</p>
       <div>{children}</div>
     </div>
   );

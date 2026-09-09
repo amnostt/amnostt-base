@@ -7,6 +7,7 @@ import { AlertDialog } from '@/components/ui/alert-dialog';
 import { ApiError } from '../../core/http/api-client';
 import { createTask, updateTask } from './task-repository';
 import type { Task, TaskStatus } from './task-models';
+import { isValidCalendarDate } from './calendar-date';
 
 type Requester = <T>(path: string, init?: RequestInit) => Promise<T>;
 type FormField = 'title' | 'description' | 'dueDate';
@@ -197,6 +198,9 @@ export function TaskForm({ request, onClose, onSaved, task }: TaskFormProps) {
         open={confirmClose}
         title="Discard unsaved changes?"
         description="Your changes will be lost."
+        onOpenChange={(open) => {
+          if (!open) setConfirmClose(false);
+        }}
       >
         <Button type="button" variant="destructive" onClick={onClose}>
           Discard changes
@@ -210,18 +214,5 @@ export function TaskForm({ request, onClose, onSaved, task }: TaskFormProps) {
         </Button>
       </AlertDialog>
     </>
-  );
-}
-
-function isValidCalendarDate(value: string): boolean {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) return false;
-  const date = new Date(
-    Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])),
-  );
-  return (
-    date.getUTCFullYear() === Number(match[1]) &&
-    date.getUTCMonth() === Number(match[2]) - 1 &&
-    date.getUTCDate() === Number(match[3])
   );
 }

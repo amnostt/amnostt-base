@@ -1,4 +1,11 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -42,7 +49,10 @@ function renderPage(
   return store;
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe('TaskListPage', () => {
   it('shows a table skeleton while the collection request is pending', async () => {
@@ -219,5 +229,88 @@ describe('TaskListPage', () => {
 
     await user.click(confirm);
     expect(request).toHaveBeenCalledOnce();
+  });
+  it('debounces search requests, aborts superseded requests, and keeps the latest result', async () => {
+    const pending: Array<{ resolve: (value: unknown) => void }> = [];
+    const requestResponse = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: [],
+        meta: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
+      })
+      .mockImplementation(
+        () =>
+          new Promise<unknown>((resolve) => {
+            pending.push({ resolve });
+          }),
+      );
+    renderPage(
+      requestResponse as unknown as <T>(
+        path: string,
+        init?: RequestInit,
+      ) => Promise<T>,
+    );
+    await screen.findByText('No tasks yet.');
+    expect(requestResponse).toHaveBeenCalledOnce();
+
+    vi.useFakeTimers();
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search tasks' }), {
+      target: { value: 'a' },
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(299);
+    });
+    expect(requestResponse).toHaveBeenCalledOnce();
+    await act(async () => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(requestResponse).toHaveBeenCalledTimes(2);
+
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search tasks' }), {
+      target: { value: 'ab' },
+    });
+    expect(requestResponse.mock.calls[1][1]?.signal).toBeInstanceOf(
+      AbortSignal,
+    );
+    expect(requestResponse.mock.calls[1][1]?.signal?.aborted).toBe(true);
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(requestResponse).toHaveBeenCalledTimes(3);
+
+    pending[1].resolve({
+      data: [
+        {
+          id: 'latest',
+          ownerId: 'member-id',
+          title: 'Latest task',
+          description: null,
+          status: 'pending',
+          dueDate: null,
+          createdAt: '2026-09-09T00:00:00.000Z',
+          updatedAt: '2026-09-09T00:00:00.000Z',
+        },
+      ],
+      meta: { page: 1, limit: 20, totalItems: 1, totalPages: 1 },
+    });
+    await act(async () => {});
+    pending[0].resolve({
+      data: [
+        {
+          id: 'stale',
+          ownerId: 'member-id',
+          title: 'Stale task',
+          description: null,
+          status: 'pending',
+          dueDate: null,
+          createdAt: '2026-09-09T00:00:00.000Z',
+          updatedAt: '2026-09-09T00:00:00.000Z',
+        },
+      ],
+      meta: { page: 1, limit: 20, totalItems: 1, totalPages: 1 },
+    });
+
+    expect(screen.getByText('Latest task')).toBeInTheDocument();
+    expect(screen.queryByText('Stale task')).not.toBeInTheDocument();
   });
 });
