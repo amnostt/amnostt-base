@@ -1,4 +1,8 @@
-import { UnauthorizedException } from '@nestjs/common';
+import {
+  InternalServerErrorException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../prisma.service';
 import { AuthService } from './auth.service';
@@ -7,8 +11,10 @@ import { AuthTokenPair } from './auth.types';
 
 describe('AuthService', () => {
   const findUniqueUser = jest.fn();
+  const findUniqueRole = jest.fn();
   const findFirstSession = jest.fn();
   const findUniqueSession = jest.fn();
+  const createUser = jest.fn();
   const createSession = jest.fn();
   const updateManySession = jest.fn();
   const runTransaction = jest.fn();
@@ -20,6 +26,10 @@ describe('AuthService', () => {
   const prisma = {
     user: {
       findUnique: findUniqueUser,
+      create: createUser,
+    },
+    role: {
+      findUnique: findUniqueRole,
     },
     session: {
       findFirst: findFirstSession,
@@ -41,11 +51,21 @@ describe('AuthService', () => {
     authTokenService as unknown as { verifyRefreshToken: jest.Mock }
   ).verifyRefreshToken;
 
-  const service = new AuthService(prisma, authTokenService);
+  const getConfigValue = jest.fn((key: string) =>
+    key === 'AUTH_REGISTRATION_DEFAULT_ROLE' ? 'Member' : undefined,
+  );
+  const configService = {
+    get: getConfigValue,
+  } as unknown as ConfigService;
+
+  const service = new AuthService(prisma, authTokenService, configService);
 
   beforeEach(() => {
     jest.clearAllMocks();
     signedSessionId = '';
+    getConfigValue.mockImplementation((key: string) =>
+      key === 'AUTH_REGISTRATION_DEFAULT_ROLE' ? 'Member' : undefined,
+    );
     runTransaction.mockImplementation(
       async (
         callback: (transaction: {
@@ -285,6 +305,69 @@ describe('AuthService', () => {
         },
       },
     });
+  });
+
+  describe('registration default role', () => {
+    it('should resolve a configured non-privileged role by classification', async () => {
+      findUniqueRole.mockResolvedValue({
+        id: 'member-role-id',
+        name: 'Member',
+        isPrivileged: false,
+      });
+
+      await expect(service.resolveRegistrationRole()).resolves.toEqual({
+        id: 'member-role-id',
+        name: 'Member',
+        isPrivileged: false,
+      });
+
+      expect(findUniqueRole).toHaveBeenCalledWith({
+        where: { name: 'Member' },
+        select: { id: true, name: true, isPrivileged: true },
+      });
+    });
+
+    it.each([
+      {
+        description: 'missing configuration',
+        configuredRole: undefined,
+        role: null,
+      },
+      {
+        description: 'an unseeded role',
+        configuredRole: 'Future Member',
+        role: null,
+      },
+      {
+        description: 'a privileged role',
+        configuredRole: 'Admin',
+        role: { id: 'admin-role-id', name: 'Admin', isPrivileged: true },
+      },
+      {
+        description: 'an unknown role classified as privileged',
+        configuredRole: 'Renamed Admin',
+        role: {
+          id: 'renamed-admin-role-id',
+          name: 'Renamed Admin',
+          isPrivileged: true,
+        },
+      },
+    ])(
+      'should reject $description before any user or session write',
+      async ({ configuredRole, role }) => {
+        getConfigValue.mockReturnValue(configuredRole);
+        findUniqueRole.mockResolvedValue(role);
+
+        await expect(service.resolveRegistrationRole()).rejects.toEqual(
+          new InternalServerErrorException(
+            'Registration default role is unavailable or privileged',
+          ),
+        );
+
+        expect(createUser).not.toHaveBeenCalled();
+        expect(createSession).not.toHaveBeenCalled();
+      },
+    );
   });
 
   it('should reject an invalid, expired, revoked, or inactive session', async () => {

@@ -88,14 +88,14 @@ async function main(): Promise<void> {
 
     const memberRole = await transaction.role.upsert({
       where: { name: 'Member' },
-      update: {},
-      create: { name: 'Member' },
+      update: { isPrivileged: false },
+      create: { name: 'Member', isPrivileged: false },
     });
 
     const adminRole = await transaction.role.upsert({
       where: { name: 'Admin' },
-      update: {},
-      create: { name: 'Admin' },
+      update: { isPrivileged: true },
+      create: { name: 'Admin', isPrivileged: true },
     });
 
     const rolePermissionAssignments = [

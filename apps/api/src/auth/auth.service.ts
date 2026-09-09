@@ -1,5 +1,10 @@
 import { randomUUID, timingSafeEqual } from 'node:crypto';
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../prisma.service';
 import { LoginDto } from './dto/login.dto';
@@ -19,7 +24,37 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly authTokenService: AuthTokenService,
+    private readonly configService: ConfigService,
   ) {}
+
+  async resolveRegistrationRole(): Promise<{
+    id: string;
+    name: string;
+    isPrivileged: boolean;
+  }> {
+    const roleName = this.configService
+      .get<string>('AUTH_REGISTRATION_DEFAULT_ROLE')
+      ?.trim();
+
+    if (!roleName) {
+      throw new InternalServerErrorException(
+        'Registration default role is unavailable or privileged',
+      );
+    }
+
+    const role = await this.prisma.role.findUnique({
+      where: { name: roleName },
+      select: { id: true, name: true, isPrivileged: true },
+    });
+
+    if (!role || role.isPrivileged) {
+      throw new InternalServerErrorException(
+        'Registration default role is unavailable or privileged',
+      );
+    }
+
+    return role;
+  }
 
   async login(loginDto: LoginDto): Promise<LoginResult> {
     const email = loginDto.email.trim().toLowerCase();

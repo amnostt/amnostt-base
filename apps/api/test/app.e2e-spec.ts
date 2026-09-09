@@ -47,6 +47,7 @@ describe('API (e2e)', () => {
   let refreshTtlSeconds: number;
   let prisma: PrismaService;
   const createdTaskIds: string[] = [];
+  const createdRoleIds: string[] = [];
 
   function getRefreshCookie(response: Response): string {
     const setCookieHeaders = response.headers['set-cookie'] as
@@ -199,6 +200,52 @@ describe('API (e2e)', () => {
     } else {
       expect(refreshCookie).not.toContain('Secure');
     }
+  });
+
+  it('asserts additive default-deny role classification for seeded roles', async () => {
+    const memberRole = await prisma.role.findUniqueOrThrow({
+      where: { name: 'Member' },
+      select: { isPrivileged: true },
+    });
+    const adminRole = await prisma.role.findUniqueOrThrow({
+      where: { name: 'Admin' },
+      select: { isPrivileged: true },
+    });
+
+    expect(memberRole.isPrivileged).toBe(false);
+    expect(adminRole.isPrivileged).toBe(true);
+  });
+
+  it('defaults an unknown role to privileged and preserves seed classifications on upsert', async () => {
+    const unknownRole = await prisma.role.create({
+      data: { name: `Future role ${randomUUID()}` },
+      select: { id: true, isPrivileged: true },
+    });
+    createdRoleIds.push(unknownRole.id);
+
+    expect(unknownRole.isPrivileged).toBe(true);
+
+    await prisma.role.upsert({
+      where: { name: 'Member' },
+      update: { isPrivileged: false },
+      create: { name: 'Member', isPrivileged: false },
+    });
+    await prisma.role.upsert({
+      where: { name: 'Admin' },
+      update: { isPrivileged: true },
+      create: { name: 'Admin', isPrivileged: true },
+    });
+
+    await expect(
+      prisma.role.findMany({
+        where: { name: { in: ['Member', 'Admin'] } },
+        select: { name: true, isPrivileged: true },
+        orderBy: { name: 'asc' },
+      }),
+    ).resolves.toEqual([
+      { name: 'Admin', isPrivileged: true },
+      { name: 'Member', isPrivileged: false },
+    ]);
   });
 
   it('rejects invalid credentials with a generic 401 and no refresh cookie', async () => {
@@ -751,6 +798,12 @@ describe('API (e2e)', () => {
     if (createdTaskIds.length) {
       await prisma.task.deleteMany({
         where: { id: { in: createdTaskIds.splice(0) } },
+      });
+    }
+
+    if (createdRoleIds.length) {
+      await prisma.role.deleteMany({
+        where: { id: { in: createdRoleIds.splice(0) } },
       });
     }
   });
