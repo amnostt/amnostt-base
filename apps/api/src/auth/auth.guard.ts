@@ -11,6 +11,7 @@ import { CurrentUser } from './auth.types';
 
 interface AuthenticatedRequest extends Request {
   user?: CurrentUser;
+  sessionId?: string;
 }
 
 @Injectable()
@@ -33,6 +34,7 @@ export class AuthGuard implements CanActivate {
     try {
       const payload = await this.authTokenService.verifyAccessToken(token);
 
+      request.sessionId = payload.sid;
       request.user = await this.authService.getCurrentUser(
         payload.sub,
         payload.sid,

@@ -7,6 +7,7 @@ import {
   selectBootstrap,
   selectLogin,
   selectRegister,
+  selectChangePassword,
   selectLogout,
   selectRequest,
   selectRequestResponse,
@@ -38,6 +39,7 @@ export function useSession() {
   const bootstrap = useStore(store, selectBootstrap);
   const login = useStore(store, selectLogin);
   const register = useStore(store, selectRegister);
+  const changePassword = useStore(store, selectChangePassword);
   const logout = useStore(store, selectLogout);
   const request = useStore(store, selectRequest);
   const requestResponse = useStore(store, selectRequestResponse);
@@ -48,6 +50,7 @@ export function useSession() {
     bootstrap,
     login,
     register,
+    changePassword,
     logout,
     request,
     requestResponse,

@@ -6,6 +6,7 @@ import { AuthService } from './auth.service';
 describe('AuthController', () => {
   const login = jest.fn();
   const register = jest.fn();
+  const changePassword = jest.fn();
   const refresh = jest.fn();
   const logout = jest.fn();
   const cookie = jest.fn();
@@ -14,6 +15,7 @@ describe('AuthController', () => {
   const authService = {
     login,
     register,
+    changePassword,
     refresh,
     logout,
   } as unknown as AuthService;
@@ -273,5 +275,28 @@ describe('AuthController', () => {
     };
 
     expect(controller.me(currentUser)).toEqual({ currentUser });
+  });
+
+  it('should change the authenticated password and return no content', async () => {
+    changePassword.mockResolvedValue(undefined);
+    const currentUser = {
+      id: 'user-id',
+      email: 'member@example.com',
+      name: 'Member User',
+      role: 'Member',
+      permissions: ['tasks:read:own'],
+    };
+
+    await expect(
+      controller.changePassword(currentUser, 'session-id', {
+        currentPassword: 'correct-password',
+        newPassword: 'b'.repeat(12),
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(changePassword).toHaveBeenCalledWith('user-id', 'session-id', {
+      currentPassword: 'correct-password',
+      newPassword: 'b'.repeat(12),
+    });
   });
 });

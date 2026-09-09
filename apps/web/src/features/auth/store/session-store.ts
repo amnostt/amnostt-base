@@ -5,6 +5,7 @@ import type { ApiResponse } from '../../../core/http/api-client';
 import type { AuthRepository } from '../domain/auth-repository';
 import type {
   CurrentUser,
+  ChangePasswordInput,
   LoginInput,
   RegisterInput,
   SessionState,
@@ -106,6 +107,11 @@ export function createSessionStore(
       }
     };
 
+    const changePassword = async (input: ChangePasswordInput) => {
+      if (get().snapshot.status !== 'authenticated') return;
+      await auth.changePassword(input);
+    };
+
     const logout = async () => {
       if (get().snapshot.status === 'logout-pending') return;
       publish({ status: 'logout-pending' });
@@ -190,6 +196,7 @@ export function createSessionStore(
       bootstrap,
       login,
       register,
+      changePassword,
       logout,
       request: requestData,
       requestResponse: requestEnvelope,

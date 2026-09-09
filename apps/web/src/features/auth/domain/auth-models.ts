@@ -16,6 +16,11 @@ export interface RegisterInput {
   password: string;
 }
 
+export interface ChangePasswordInput {
+  currentPassword: string;
+  newPassword: string;
+}
+
 export interface Session {
   accessToken: string;
   currentUser: CurrentUser;

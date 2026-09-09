@@ -1,6 +1,11 @@
 import type { ApiClient } from '../../../core/http/api-client';
 import type { AuthRepository } from '../domain/auth-repository';
-import type { LoginInput, RegisterInput, Session } from '../domain/auth-models';
+import type {
+  ChangePasswordInput,
+  LoginInput,
+  RegisterInput,
+  Session,
+} from '../domain/auth-models';
 import type {
   LoginResponse,
   MeResponse,
@@ -56,6 +61,14 @@ export class HttpAuthRepository implements AuthRepository {
       },
     );
     return accessToken;
+  }
+
+  async changePassword(input: ChangePasswordInput): Promise<void> {
+    await this.client.request<void>('/auth/password', {
+      method: 'POST',
+      body: JSON.stringify(input),
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   async logout(): Promise<void> {

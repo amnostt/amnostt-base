@@ -15,8 +15,11 @@ describe('AuthService', () => {
   const findUniqueRole = jest.fn();
   const findFirstSession = jest.fn();
   const findUniqueSession = jest.fn();
+  const findPasswordSession = jest.fn();
+  const findPasswordUser = jest.fn();
   const createUser = jest.fn();
   const createSession = jest.fn();
+  const updatePasswordUser = jest.fn();
   const updateManySession = jest.fn();
   const runTransaction = jest.fn();
   const signTokenPair = jest.fn();
@@ -527,6 +530,137 @@ describe('AuthService', () => {
     await expect(
       service.getCurrentUser('user-id', 'session-id'),
     ).rejects.toThrow(new UnauthorizedException('Invalid session'));
+  });
+
+  describe('password change', () => {
+    const configurePasswordTransaction = () => {
+      runTransaction.mockImplementation(
+        async (
+          callback: (transaction: {
+            user: { findUnique: jest.Mock; update: jest.Mock };
+            session: { findFirst: jest.Mock; updateMany: jest.Mock };
+          }) => Promise<unknown>,
+        ) =>
+          callback({
+            user: {
+              findUnique: findPasswordUser,
+              update: updatePasswordUser,
+            },
+            session: {
+              findFirst: findPasswordSession,
+              updateMany: updateManySession,
+            },
+          }),
+      );
+    };
+
+    beforeEach(() => {
+      configurePasswordTransaction();
+      findPasswordSession.mockResolvedValue({ id: 'session-id' });
+      findPasswordUser.mockResolvedValue({
+        id: 'user-id',
+        isActive: true,
+        passwordHash: '',
+      });
+      updatePasswordUser.mockResolvedValue({});
+      updateManySession.mockResolvedValue({ count: 1 });
+    });
+
+    it('rejects a wrong current password without changing the hash or sessions', async () => {
+      findPasswordUser.mockResolvedValue({
+        id: 'user-id',
+        isActive: true,
+        passwordHash: await argon2.hash('correct-password'),
+      });
+
+      await expect(
+        service.changePassword('user-id', 'session-id', {
+          currentPassword: 'wrong-password',
+          newPassword: 'b'.repeat(12),
+        }),
+      ).rejects.toEqual(new UnauthorizedException('Invalid current password'));
+
+      expect(updatePasswordUser).not.toHaveBeenCalled();
+      expect(updateManySession).not.toHaveBeenCalled();
+    });
+
+    it('replaces the password and revokes every other active session transactionally', async () => {
+      findPasswordUser.mockResolvedValue({
+        id: 'user-id',
+        isActive: true,
+        passwordHash: await argon2.hash('correct-password'),
+      });
+
+      await expect(
+        service.changePassword('user-id', 'session-id', {
+          currentPassword: 'correct-password',
+          newPassword: 'b'.repeat(12),
+        }),
+      ).resolves.toBeUndefined();
+
+      expect(runTransaction).toHaveBeenCalledWith(expect.any(Function), {
+        isolationLevel: 'Serializable',
+      });
+      expect(findPasswordSession).toHaveBeenCalledWith({
+        where: {
+          id: 'session-id',
+          userId: 'user-id',
+          revokedAt: null,
+          expiresAt: { gt: expect.any(Date) as Date },
+          user: { isActive: true },
+        },
+        select: { id: true },
+      });
+      expect(updatePasswordUser).toHaveBeenCalledWith({
+        where: { id: 'user-id' },
+        data: { passwordHash: expect.any(String) as string },
+      });
+      expect(updateManySession).toHaveBeenCalledWith({
+        where: {
+          userId: 'user-id',
+          id: { not: 'session-id' },
+          revokedAt: null,
+        },
+        data: { revokedAt: expect.any(Date) as Date },
+      });
+    });
+
+    it('retries a serializable password transaction after a write conflict', async () => {
+      findPasswordUser.mockResolvedValue({
+        id: 'user-id',
+        isActive: true,
+        passwordHash: await argon2.hash('correct-password'),
+      });
+      runTransaction
+        .mockRejectedValueOnce({ code: 'P2034' })
+        .mockImplementationOnce(
+          async (
+            callback: (transaction: {
+              user: { findUnique: jest.Mock; update: jest.Mock };
+              session: { findFirst: jest.Mock; updateMany: jest.Mock };
+            }) => Promise<unknown>,
+          ) =>
+            callback({
+              user: {
+                findUnique: findPasswordUser,
+                update: updatePasswordUser,
+              },
+              session: {
+                findFirst: findPasswordSession,
+                updateMany: updateManySession,
+              },
+            }),
+        );
+
+      await expect(
+        service.changePassword('user-id', 'session-id', {
+          currentPassword: 'correct-password',
+          newPassword: 'b'.repeat(12),
+        }),
+      ).resolves.toBeUndefined();
+
+      expect(runTransaction).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('refresh', () => {

@@ -22,6 +22,7 @@ const api = (overrides: Partial<AuthRepository> = {}): AuthRepository => ({
     .fn()
     .mockResolvedValue({ accessToken: 'restore-token', currentUser: user }),
   refresh: vi.fn().mockResolvedValue('refresh-token'),
+  changePassword: vi.fn().mockResolvedValue(undefined),
   logout: vi.fn().mockResolvedValue(undefined),
   ...overrides,
 });
@@ -74,6 +75,39 @@ describe('SessionStore', () => {
       password: 'secret',
     });
     expect(auth.restore).toHaveBeenCalledOnce();
+  });
+
+  it('changes the password through the repository while retaining the session token', async () => {
+    const auth = api();
+    const request = vi.fn().mockResolvedValue({ value: 1 });
+    const store = createSessionStore(
+      auth,
+      async <T>(path: string, init?: RequestInit) =>
+        request(path, init) as Promise<T>,
+    );
+
+    await store
+      .getState()
+      .login({ email: 'a@example.com', password: 'secret' });
+    await store.getState().changePassword({
+      currentPassword: 'current-password',
+      newPassword: 'a'.repeat(12),
+    });
+    await expect(store.getState().request('/protected')).resolves.toEqual({
+      value: 1,
+    });
+
+    expect(auth.changePassword).toHaveBeenCalledWith({
+      currentPassword: 'current-password',
+      newPassword: 'a'.repeat(12),
+    });
+    expect(store.getState().snapshot).toEqual({
+      status: 'authenticated',
+      user,
+    });
+    expect(request.mock.calls[0][1]?.headers).toEqual({
+      Authorization: 'Bearer login-token',
+    });
   });
 
   it('shares refresh, retries each request once, and handles a changed token race', async () => {

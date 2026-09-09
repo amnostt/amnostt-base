@@ -18,6 +18,7 @@ const auth: AuthRepository = {
   refresh: async () => {
     throw new Error();
   },
+  changePassword: async () => {},
   logout: async () => {},
 };
 

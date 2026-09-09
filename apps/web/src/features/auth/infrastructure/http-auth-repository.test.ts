@@ -18,6 +18,7 @@ describe('HttpAuthRepository', () => {
       .mockResolvedValueOnce({ accessToken: 'registered-token', currentUser: user })
       .mockResolvedValueOnce({ accessToken: 'refresh-token' })
       .mockResolvedValueOnce({ currentUser: user })
+      .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce(undefined);
     const repository = new HttpAuthRepository({
       request: request as ApiClient['request'],
@@ -40,6 +41,10 @@ describe('HttpAuthRepository', () => {
       accessToken: 'refresh-token',
       currentUser: user,
     });
+    await repository.changePassword({
+      currentPassword: 'current-password',
+      newPassword: 'a'.repeat(12),
+    });
     await repository.logout();
 
     expect(
@@ -49,6 +54,7 @@ describe('HttpAuthRepository', () => {
       ['/auth/register', 'POST'],
       ['/auth/refresh', 'POST'],
       ['/auth/me', 'GET'],
+      ['/auth/password', 'POST'],
       ['/auth/logout', 'POST'],
     ]);
     expect(JSON.parse(request.mock.calls[0][1]?.body as string)).toEqual({
@@ -64,6 +70,13 @@ describe('HttpAuthRepository', () => {
     });
     expect(request.mock.calls[3][1]?.headers).toEqual({
       Authorization: 'Bearer refresh-token',
+    });
+    expect(JSON.parse(request.mock.calls[4][1]?.body as string)).toEqual({
+      currentPassword: 'current-password',
+      newPassword: 'a'.repeat(12),
+    });
+    expect(request.mock.calls[4][1]?.headers).toEqual({
+      'Content-Type': 'application/json',
     });
   });
 });

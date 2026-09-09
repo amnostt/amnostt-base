@@ -12,12 +12,14 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from './auth.guard';
 import { CurrentUser as CurrentUserDecorator } from './current-user.decorator';
+import { CurrentSessionId } from './current-session-id.decorator';
 import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import type { CurrentUser } from './auth.types';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { RegistrationThrottleGuard } from './registration-throttle.guard';
 
 const REFRESH_COOKIE_NAME = 'refresh_token';
@@ -93,6 +95,21 @@ export class AuthController {
     currentUser: CurrentUser;
   } {
     return { currentUser };
+  }
+
+  @Post('password')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(AuthGuard)
+  async changePassword(
+    @CurrentUserDecorator() currentUser: CurrentUser,
+    @CurrentSessionId() sessionId: string,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ): Promise<void> {
+    await this.authService.changePassword(
+      currentUser.id,
+      sessionId,
+      changePasswordDto,
+    );
   }
 
   @Post('refresh')

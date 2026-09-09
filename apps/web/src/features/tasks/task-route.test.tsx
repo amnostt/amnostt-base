@@ -30,6 +30,7 @@ function renderApp(
       .fn()
       .mockResolvedValue({ accessToken: 'token', currentUser: user }),
     refresh: vi.fn(),
+    changePassword: vi.fn(),
     logout: vi.fn(),
   };
   const store = createSessionStore(auth, request, requestResponse);

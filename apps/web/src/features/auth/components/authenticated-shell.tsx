@@ -26,6 +26,7 @@ export function AuthenticatedShell() {
         <SidebarContent>
           <nav aria-label="Primary navigation" className="grid gap-2">
             <Link to="/">Home</Link>
+            <Link to="/password">Change password</Link>
             {canReadTasks && <Link to="/tasks">Tasks</Link>}
           </nav>
         </SidebarContent>

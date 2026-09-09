@@ -28,6 +28,7 @@ function auth(overrides: Partial<AuthRepository> = {}): AuthRepository {
       .fn()
       .mockResolvedValue({ accessToken: 'token', currentUser: user }),
     refresh: vi.fn().mockResolvedValue('token'),
+    changePassword: vi.fn().mockResolvedValue(undefined),
     logout: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
@@ -117,6 +118,37 @@ describe('App session integration', () => {
 
     expect(
       await screen.findByText('An account with this email already exists.'),
+    ).toBeInTheDocument();
+  });
+
+  it('changes the password without replacing the authenticated session', async () => {
+    window.history.pushState({}, '', '/password');
+    const api = auth();
+    renderIntegration(api);
+
+    expect(
+      await screen.findByRole('heading', { name: 'Change password' }),
+    ).toBeInTheDocument();
+    const formUser = userEvent.setup();
+    await formUser.type(
+      screen.getByLabelText('Current password'),
+      'current-password',
+    );
+    await formUser.type(
+      screen.getByLabelText('New password'),
+      'a'.repeat(12),
+    );
+    await formUser.click(
+      screen.getByRole('button', { name: 'Change password' }),
+    );
+
+    expect(api.changePassword).toHaveBeenCalledWith({
+      currentPassword: 'current-password',
+      newPassword: 'a'.repeat(12),
+    });
+    expect(await screen.findByText('Password updated.')).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Home' }),
     ).toBeInTheDocument();
   });
 

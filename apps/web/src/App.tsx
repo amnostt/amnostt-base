@@ -10,6 +10,7 @@ import {
 import { AuthenticatedShell } from './features/auth/components/authenticated-shell';
 import { LoginForm } from './features/auth/components/login-form';
 import { RegisterForm } from './features/auth/components/register-form';
+import { PasswordChangeForm } from './features/auth/components/password-change-form';
 import { SessionLoading } from './features/auth/components/session-loading';
 import { useSession } from './features/auth/components/session-provider';
 import { TaskListPage } from './features/tasks/task-list-page';
@@ -70,6 +71,7 @@ function AuthenticatedRoutes() {
         <Route path="/403" element={<ForbiddenPage />} />
         <Route path="/login" element={<AuthenticatedLoginRedirect />} />
         <Route path="/register" element={<AuthenticatedLoginRedirect />} />
+        <Route path="/password" element={<PasswordChangeForm />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

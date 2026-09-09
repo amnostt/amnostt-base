@@ -25,6 +25,7 @@ describe('AuthGuard', () => {
     const request: {
       headers: { authorization?: string };
       user?: unknown;
+      sessionId?: string;
     } = {
       headers: {
         authorization,
@@ -62,6 +63,7 @@ describe('AuthGuard', () => {
     expect(verifyAccessToken).toHaveBeenCalledWith('access-token');
     expect(getCurrentUser).toHaveBeenCalledWith('user-id', 'session-id');
     expect(request.user).toEqual(currentUser);
+    expect(request.sessionId).toBe('session-id');
   });
 
   it('should accept a case-insensitive bearer scheme', async () => {

@@ -11,6 +11,7 @@ import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { AuthTokenService } from './auth-token.service';
 import {
   AuthTokenPair,
@@ -23,6 +24,7 @@ import {
 const DUMMY_PASSWORD_HASH =
   '$argon2id$v=19$m=65536,p=4,t=3$KsXskZkI6lPb8AGNd7SJdw$WVLMcRB1YjbEIUMKNt0NIcOp38qJhHmPuCRyBX0JGV8';
 const MAX_REGISTRATION_TRANSACTION_RETRIES = 3;
+const MAX_PASSWORD_TRANSACTION_RETRIES = 3;
 
 type RoleReader = Pick<PrismaService, 'role'>;
 type UserWithPermissions = {
@@ -256,6 +258,98 @@ export class AuthService {
         .map(({ permission }) => permission.code)
         .sort(),
     };
+  }
+
+  async changePassword(
+    userId: string,
+    sessionId: string,
+    changePasswordDto: ChangePasswordDto,
+  ): Promise<void> {
+    const passwordHash = await argon2.hash(changePasswordDto.newPassword, {
+      type: argon2.argon2id,
+    });
+
+    for (
+      let attempt = 0;
+      attempt < MAX_PASSWORD_TRANSACTION_RETRIES;
+      attempt += 1
+    ) {
+      try {
+        await this.prisma.$transaction(
+          async (transaction) => {
+            const callerSession = await transaction.session.findFirst({
+              where: {
+                id: sessionId,
+                userId,
+                revokedAt: null,
+                expiresAt: { gt: new Date() },
+                user: { isActive: true },
+              },
+              select: { id: true },
+            });
+
+            if (!callerSession) {
+              throw new UnauthorizedException('Invalid session');
+            }
+
+            const user = await transaction.user.findUnique({
+              where: { id: userId },
+              select: { isActive: true, passwordHash: true },
+            });
+
+            if (!user?.isActive) {
+              throw new UnauthorizedException('Invalid session');
+            }
+
+            let currentPasswordMatches = false;
+            try {
+              currentPasswordMatches = await argon2.verify(
+                user.passwordHash,
+                changePasswordDto.currentPassword,
+              );
+            } catch {
+              throw new UnauthorizedException('Invalid current password');
+            }
+
+            if (!currentPasswordMatches) {
+              throw new UnauthorizedException('Invalid current password');
+            }
+
+            await transaction.user.update({
+              where: { id: userId },
+              data: { passwordHash },
+            });
+            await transaction.session.updateMany({
+              where: {
+                userId,
+                id: { not: sessionId },
+                revokedAt: null,
+              },
+              data: { revokedAt: new Date() },
+            });
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+        return;
+      } catch (error) {
+        if (error instanceof UnauthorizedException) {
+          throw error;
+        }
+
+        if (this.hasPrismaCode(error, 'P2034')) {
+          if (attempt + 1 < MAX_PASSWORD_TRANSACTION_RETRIES) continue;
+          throw new InternalServerErrorException(
+            'Password change could not be completed',
+          );
+        }
+
+        throw error;
+      }
+    }
+
+    throw new InternalServerErrorException(
+      'Password change could not be completed',
+    );
   }
 
   async refresh(refreshToken: string | undefined): Promise<AuthTokenPair> {

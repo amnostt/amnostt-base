@@ -36,6 +36,11 @@ interface LoginSession {
   refreshCookie: string;
 }
 
+interface RegisteredSession extends LoginSession {
+  email: string;
+  userId: string;
+}
+
 describe('API (e2e)', () => {
   let app: INestApplication<App>;
   let corsOrigin: string;
@@ -74,6 +79,41 @@ describe('API (e2e)', () => {
     return {
       accessToken: (response.body as SuccessResponse<LoginPayload>).data
         .accessToken,
+      refreshCookie: getRefreshCookie(response),
+    };
+  }
+
+  async function loginUser(
+    email: string,
+    password: string,
+  ): Promise<LoginSession> {
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email, password })
+      .expect(200);
+
+    return {
+      accessToken: (response.body as SuccessResponse<LoginPayload>).data
+        .accessToken,
+      refreshCookie: getRefreshCookie(response),
+    };
+  }
+
+  async function registerSession(
+    email = `password-change-${randomUUID()}@example.com`,
+    password = 'a'.repeat(12),
+  ): Promise<RegisteredSession> {
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({ email, password })
+      .expect(201);
+    const body = (response.body as SuccessResponse<LoginPayload>).data;
+    createdUserIds.push(body.currentUser.id);
+
+    return {
+      email,
+      userId: body.currentUser.id,
+      accessToken: body.accessToken,
       refreshCookie: getRefreshCookie(response),
     };
   }
@@ -537,6 +577,153 @@ describe('API (e2e)', () => {
       .expect(401);
     expectError(malformedCookieResponse, 'UNAUTHORIZED');
     expectClearedRefreshCookie(malformedCookieResponse);
+  });
+
+  it('rejects a wrong current password without mutating the password or sessions', async () => {
+    const password = 'a'.repeat(12);
+    const session = await registerSession(undefined, password);
+    const otherSession = await loginUser(session.email, password);
+    const before = await prisma.user.findUniqueOrThrow({
+      where: { id: session.userId },
+      select: { passwordHash: true },
+    });
+
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/password')
+      .set('Authorization', `Bearer ${session.accessToken}`)
+      .send({ currentPassword: 'wrong-password', newPassword: 'b'.repeat(12) })
+      .expect(401);
+
+    expectError(response, 'UNAUTHORIZED');
+    await expect(
+      prisma.user.findUniqueOrThrow({
+        where: { id: session.userId },
+        select: { passwordHash: true },
+      }),
+    ).resolves.toEqual(before);
+    await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${session.accessToken}`)
+      .expect(200);
+    await request(app.getHttpServer())
+      .post('/api/auth/refresh')
+      .set('Cookie', otherSession.refreshCookie)
+      .expect(200);
+  });
+
+  it.each([11, 129])(
+    'rejects a %s-character replacement before mutation or revocation',
+    async (length) => {
+      const password = 'a'.repeat(12);
+      const session = await registerSession(undefined, password);
+      const user = await prisma.user.findUniqueOrThrow({
+        where: { id: session.userId },
+        select: { email: true },
+      });
+      const otherSession = await loginUser(user.email, password);
+
+      const response = await request(app.getHttpServer())
+        .post('/api/auth/password')
+        .set('Authorization', `Bearer ${session.accessToken}`)
+        .send({ currentPassword: password, newPassword: 'b'.repeat(length) })
+        .expect(400);
+
+      expectError(response, 'VALIDATION_FAILED');
+      await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .set('Authorization', `Bearer ${session.accessToken}`)
+        .expect(200);
+      await request(app.getHttpServer())
+        .post('/api/auth/refresh')
+        .set('Cookie', otherSession.refreshCookie)
+        .expect(200);
+    },
+  );
+
+  it('preserves the caller and invalidates every other session after a password change', async () => {
+    const password = 'a'.repeat(12);
+    const session = await registerSession(undefined, password);
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: session.userId },
+      select: { email: true },
+    });
+    const otherSessions = await Promise.all([
+      loginUser(user.email, password),
+      loginUser(user.email, password),
+    ]);
+
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/password')
+      .set('Authorization', `Bearer ${session.accessToken}`)
+      .send({ currentPassword: password, newPassword: 'b'.repeat(12) })
+      .expect(204);
+
+    expect(response.text).toBe('');
+    await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${session.accessToken}`)
+      .expect(200);
+    await request(app.getHttpServer())
+      .get('/api/tasks')
+      .set('Authorization', `Bearer ${session.accessToken}`)
+      .expect(200);
+
+    for (const otherSession of otherSessions) {
+      await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .set('Authorization', `Bearer ${otherSession.accessToken}`)
+        .expect(401);
+      await request(app.getHttpServer())
+        .post('/api/auth/refresh')
+        .set('Cookie', otherSession.refreshCookie)
+        .expect(401);
+    }
+  });
+
+  it('does not leave a concurrently refreshed other session active after success', async () => {
+    const password = 'a'.repeat(12);
+    const session = await registerSession(undefined, password);
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: session.userId },
+      select: { email: true },
+    });
+    const otherSession = await loginUser(user.email, password);
+
+    const [changeResponse, refreshResponse] = await Promise.all([
+      request(app.getHttpServer())
+        .post('/api/auth/password')
+        .set('Authorization', `Bearer ${session.accessToken}`)
+        .send({ currentPassword: password, newPassword: 'b'.repeat(12) }),
+      request(app.getHttpServer())
+        .post('/api/auth/refresh')
+        .set('Cookie', otherSession.refreshCookie),
+    ]);
+
+    expect(changeResponse.status).toBe(204);
+    expect([200, 401]).toContain(refreshResponse.status);
+    await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Authorization', `Bearer ${session.accessToken}`)
+      .expect(200);
+
+    if (refreshResponse.status === 200) {
+      const refreshed = refreshResponse.body as SuccessResponse<{
+        accessToken: string;
+      }>;
+      await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .set('Authorization', `Bearer ${refreshed.data.accessToken}`)
+        .expect(401);
+      await request(app.getHttpServer())
+        .post('/api/auth/refresh')
+        .set('Cookie', getRefreshCookie(refreshResponse))
+        .expect(401);
+    }
+
+    const activeSessions = await prisma.session.count({
+      where: { userId: session.userId, revokedAt: null },
+    });
+    expect(activeSessions).toBe(1);
   });
 
   it('lists only owned tasks with defaults and collection metadata', async () => {
