@@ -9,6 +9,9 @@ const auth: AuthRepository = {
   login: async () => {
     throw new Error();
   },
+  register: async () => {
+    throw new Error();
+  },
   restore: async () => {
     throw new Error();
   },
@@ -30,6 +33,7 @@ describe('SessionProvider', () => {
     const store = createSessionStore({
       ...auth,
       login: async () => ({ accessToken: 'token', currentUser: user }),
+      register: async () => ({ accessToken: 'token', currentUser: user }),
     });
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <SessionProvider store={store}>{children}</SessionProvider>

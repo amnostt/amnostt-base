@@ -1,7 +1,12 @@
 import type { ApiClient } from '../../../core/http/api-client';
 import type { AuthRepository } from '../domain/auth-repository';
-import type { LoginInput, Session } from '../domain/auth-models';
-import type { LoginResponse, MeResponse, RefreshResponse } from './auth-dtos';
+import type { LoginInput, RegisterInput, Session } from '../domain/auth-models';
+import type {
+  LoginResponse,
+  MeResponse,
+  RefreshResponse,
+  RegisterResponse,
+} from './auth-dtos';
 
 export class HttpAuthRepository implements AuthRepository {
   private readonly client: ApiClient;
@@ -16,6 +21,21 @@ export class HttpAuthRepository implements AuthRepository {
       body: JSON.stringify(input),
       headers: { 'Content-Type': 'application/json' },
     });
+    return {
+      accessToken: response.accessToken,
+      currentUser: response.currentUser,
+    };
+  }
+
+  async register(input: RegisterInput): Promise<Session> {
+    const response = await this.client.request<RegisterResponse>(
+      '/auth/register',
+      {
+        method: 'POST',
+        body: JSON.stringify(input),
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
     return {
       accessToken: response.accessToken,
       currentUser: response.currentUser,

@@ -1,23 +1,39 @@
 import { randomUUID, timingSafeEqual } from 'node:crypto';
 import {
+  ConflictException,
   Injectable,
   InternalServerErrorException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as argon2 from 'argon2';
+import { Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma.service';
 import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
 import { AuthTokenService } from './auth-token.service';
 import {
   AuthTokenPair,
   AuthTokenPayload,
   CurrentUser,
   LoginResult,
+  normalizeEmail,
 } from './auth.types';
 
 const DUMMY_PASSWORD_HASH =
   '$argon2id$v=19$m=65536,p=4,t=3$KsXskZkI6lPb8AGNd7SJdw$WVLMcRB1YjbEIUMKNt0NIcOp38qJhHmPuCRyBX0JGV8';
+const MAX_REGISTRATION_TRANSACTION_RETRIES = 3;
+
+type RoleReader = Pick<PrismaService, 'role'>;
+type UserWithPermissions = {
+  id: string;
+  email: string;
+  name: string;
+  role: {
+    name: string;
+    rolePermissions: Array<{ permission: { code: string } }>;
+  };
+};
 
 @Injectable()
 export class AuthService {
@@ -27,7 +43,7 @@ export class AuthService {
     private readonly configService: ConfigService,
   ) {}
 
-  async resolveRegistrationRole(): Promise<{
+  async resolveRegistrationRole(client: RoleReader = this.prisma): Promise<{
     id: string;
     name: string;
     isPrivileged: boolean;
@@ -42,7 +58,7 @@ export class AuthService {
       );
     }
 
-    const role = await this.prisma.role.findUnique({
+    const role = await client.role.findUnique({
       where: { name: roleName },
       select: { id: true, name: true, isPrivileged: true },
     });
@@ -57,7 +73,7 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto): Promise<LoginResult> {
-    const email = loginDto.email.trim().toLowerCase();
+    const email = normalizeEmail(loginDto.email);
     const user = await this.prisma.user.findUnique({
       where: {
         email,
@@ -106,16 +122,92 @@ export class AuthService {
     return {
       accessToken,
       refreshToken,
-      currentUser: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role.name,
-        permissions: user.role.rolePermissions
-          .map(({ permission }) => permission.code)
-          .sort(),
-      },
+      currentUser: this.toCurrentUser(user),
     };
+  }
+
+  async register(registerDto: RegisterDto): Promise<LoginResult> {
+    const email = normalizeEmail(registerDto.email);
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+
+    if (existingUser) {
+      throw new ConflictException('Email is already registered');
+    }
+
+    const passwordHash = await argon2.hash(registerDto.password, {
+      type: argon2.argon2id,
+    });
+
+    for (
+      let attempt = 0;
+      attempt < MAX_REGISTRATION_TRANSACTION_RETRIES;
+      attempt += 1
+    ) {
+      try {
+        return await this.prisma.$transaction(
+          async (transaction) => {
+            const role = await this.resolveRegistrationRole(transaction);
+            const user = await transaction.user.create({
+              data: {
+                email,
+                name: email,
+                passwordHash,
+                roleId: role.id,
+              },
+              include: {
+                role: {
+                  include: {
+                    rolePermissions: {
+                      include: { permission: true },
+                    },
+                  },
+                },
+              },
+            });
+            const sessionId = randomUUID();
+            const { accessToken, refreshToken } =
+              await this.authTokenService.signTokenPair(user.id, sessionId);
+
+            await transaction.session.create({
+              data: {
+                id: sessionId,
+                userId: user.id,
+                refreshTokenHash:
+                  this.authTokenService.hashRefreshToken(refreshToken),
+                expiresAt: this.authTokenService.getRefreshTokenExpiresAt(),
+              },
+            });
+
+            return {
+              accessToken,
+              refreshToken,
+              currentUser: this.toCurrentUser(user),
+            };
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+      } catch (error) {
+        if (this.hasPrismaCode(error, 'P2002')) {
+          throw new ConflictException('Email is already registered');
+        }
+
+        if (this.hasPrismaCode(error, 'P2034')) {
+          if (attempt + 1 < MAX_REGISTRATION_TRANSACTION_RETRIES) continue;
+          throw new InternalServerErrorException(
+            'Registration could not be completed',
+          );
+        }
+
+        throw error;
+      }
+    }
+
+    throw new InternalServerErrorException(
+      'Registration could not be completed',
+    );
   }
 
   async getCurrentUser(
@@ -274,6 +366,31 @@ export class AuthService {
         revokedAt: new Date(),
       },
     });
+  }
+
+  private toCurrentUser(user: UserWithPermissions): CurrentUser {
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role.name,
+      permissions: user.role.rolePermissions
+        .map(({ permission }) => permission.code)
+        .sort(),
+    };
+  }
+
+  private hasPrismaCode(error: unknown, code: string): boolean {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      return error.code === code;
+    }
+
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error as { code?: unknown }).code === code
+    );
   }
 
   private matchesRefreshTokenHash(

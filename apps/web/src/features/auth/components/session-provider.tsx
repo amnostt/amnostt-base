@@ -6,6 +6,7 @@ import type { SessionStore } from '../store/session-state';
 import {
   selectBootstrap,
   selectLogin,
+  selectRegister,
   selectLogout,
   selectRequest,
   selectRequestResponse,
@@ -36,6 +37,7 @@ export function useSession() {
   const snapshot = useStore(store, selectSessionSnapshot);
   const bootstrap = useStore(store, selectBootstrap);
   const login = useStore(store, selectLogin);
+  const register = useStore(store, selectRegister);
   const logout = useStore(store, selectLogout);
   const request = useStore(store, selectRequest);
   const requestResponse = useStore(store, selectRequestResponse);
@@ -45,6 +47,7 @@ export function useSession() {
     snapshot,
     bootstrap,
     login,
+    register,
     logout,
     request,
     requestResponse,

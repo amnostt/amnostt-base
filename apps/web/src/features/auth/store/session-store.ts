@@ -6,6 +6,7 @@ import type { AuthRepository } from '../domain/auth-repository';
 import type {
   CurrentUser,
   LoginInput,
+  RegisterInput,
   SessionState,
 } from '../domain/auth-models';
 import type { SessionStore } from './session-state';
@@ -65,6 +66,7 @@ export function createSessionStore(
     const login = async (input: LoginInput) => {
       if (
         get().snapshot.status === 'login-submitting' ||
+        get().snapshot.status === 'register-submitting' ||
         get().snapshot.status === 'logout-pending'
       )
         return;
@@ -78,6 +80,28 @@ export function createSessionStore(
         publish({ status: 'authenticated', user: session.currentUser });
       } catch {
         if (loginEpoch === epoch) publish({ status: 'unauthenticated' });
+        throw new ApiError(0);
+      }
+    };
+
+    const register = async (input: RegisterInput) => {
+      if (
+        get().snapshot.status === 'login-submitting' ||
+        get().snapshot.status === 'register-submitting' ||
+        get().snapshot.status === 'logout-pending'
+      )
+        return;
+      const registerEpoch = ++epoch;
+      publish({ status: 'register-submitting', email: input.email });
+      try {
+        const session = await auth.register(input);
+        if (registerEpoch !== epoch) return;
+        token = session.accessToken;
+        currentUser = session.currentUser;
+        publish({ status: 'authenticated', user: session.currentUser });
+      } catch (error) {
+        if (registerEpoch === epoch) publish({ status: 'unauthenticated' });
+        if (error instanceof ApiError) throw error;
         throw new ApiError(0);
       }
     };
@@ -165,6 +189,7 @@ export function createSessionStore(
       snapshot: { status: 'bootstrap-loading' },
       bootstrap,
       login,
+      register,
       logout,
       request: requestData,
       requestResponse: requestEnvelope,

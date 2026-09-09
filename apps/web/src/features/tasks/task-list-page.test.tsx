@@ -22,6 +22,7 @@ function renderPage(
 ) {
   const auth: AuthRepository = {
     login: vi.fn(),
+    register: vi.fn(),
     restore: vi
       .fn()
       .mockResolvedValue({ accessToken: 'token', currentUser: user }),

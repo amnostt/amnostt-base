@@ -48,6 +48,7 @@ describe('API (e2e)', () => {
   let prisma: PrismaService;
   const createdTaskIds: string[] = [];
   const createdRoleIds: string[] = [];
+  const createdUserIds: string[] = [];
 
   function getRefreshCookie(response: Response): string {
     const setCookieHeaders = response.headers['set-cookie'] as
@@ -103,6 +104,11 @@ describe('API (e2e)', () => {
   }
 
   beforeAll(async () => {
+    process.env.AUTH_REGISTRATION_IP_LIMIT = '100';
+    process.env.AUTH_REGISTRATION_IP_TTL_SECONDS = '60';
+    process.env.AUTH_REGISTRATION_EMAIL_LIMIT = '3';
+    process.env.AUTH_REGISTRATION_EMAIL_TTL_SECONDS = '60';
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -246,6 +252,129 @@ describe('API (e2e)', () => {
       { name: 'Admin', isPrivileged: true },
       { name: 'Member', isPrivileged: false },
     ]);
+  });
+
+  it.each([12, 128])(
+    'registers a %s-character password and establishes the login session',
+    async (length) => {
+      const email = `registration-${randomUUID()}@example.com`;
+      const response = await request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({ email, password: 'a'.repeat(length) })
+        .expect(201);
+      const body = (response.body as SuccessResponse<LoginPayload>).data;
+      createdUserIds.push(body.currentUser.id);
+
+      expect(body.accessToken).toEqual(expect.any(String));
+      expect(body.currentUser).toEqual(
+        expect.objectContaining({
+          email,
+          name: email,
+          role: 'Member',
+        }),
+      );
+      expect(getRefreshCookie(response)).toContain('Path=/api/auth');
+
+      await request(app.getHttpServer())
+        .get('/api/auth/me')
+        .set('Authorization', `Bearer ${body.accessToken}`)
+        .expect(200)
+        .expect({ data: { currentUser: body.currentUser } });
+    },
+  );
+
+  it.each([
+    { password: 'a'.repeat(11), description: '11 characters' },
+    { password: 'a'.repeat(129), description: '129 characters' },
+    { password: 123456789012, description: 'a non-string value' },
+  ])(
+    'rejects $description without creating an account',
+    async ({ password }) => {
+      const email = `invalid-registration-${randomUUID()}@example.com`;
+      const countBefore = await prisma.user.count({ where: { email } });
+
+      const response = await request(app.getHttpServer())
+        .post('/api/auth/register')
+        .send({ email, password })
+        .expect(400);
+
+      expectError(response, 'VALIDATION_FAILED');
+      expect(await prisma.user.count({ where: { email } })).toBe(countBefore);
+    },
+  );
+
+  it('normalizes duplicate email input and returns 409 without a second account', async () => {
+    const email = `duplicate-${randomUUID()}@example.com`;
+    const firstResponse = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({ email: ` ${email.toUpperCase()} `, password: 'a'.repeat(12) })
+      .expect(201);
+    const firstUser = (firstResponse.body as SuccessResponse<LoginPayload>).data
+      .currentUser;
+    createdUserIds.push(firstUser.id);
+
+    const duplicateResponse = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({ email: email.toLowerCase(), password: 'b'.repeat(12) })
+      .expect(409);
+
+    expectError(duplicateResponse, 'CONFLICT');
+    expect(
+      await prisma.user.count({ where: { email: email.toLowerCase() } }),
+    ).toBe(1);
+  });
+
+  it('throttles repeated registration attempts by normalized email', async () => {
+    const email = `throttled-${randomUUID()}@example.com`;
+    const firstResponse = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({ email, password: 'a'.repeat(12) })
+      .expect(201);
+    createdUserIds.push(
+      (firstResponse.body as SuccessResponse<LoginPayload>).data.currentUser.id,
+    );
+
+    await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({ email: email.toUpperCase(), password: 'b'.repeat(12) })
+      .expect(409);
+
+    await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({ email, password: 'c'.repeat(12) })
+      .expect(409);
+
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({ email, password: 'd'.repeat(12) })
+      .expect(429);
+
+    expect(response.headers['retry-after-registration-email']).toEqual(
+      expect.any(String),
+    );
+  });
+
+  it('uses the same refresh-cookie contract as login', async () => {
+    const email = `cookie-${randomUUID()}@example.com`;
+    const registrationResponse = await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({ email, password: 'a'.repeat(12) })
+      .expect(201);
+    const registeredUser = (
+      registrationResponse.body as SuccessResponse<LoginPayload>
+    ).data.currentUser;
+    createdUserIds.push(registeredUser.id);
+
+    const loginResponse = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email, password: 'a'.repeat(12) })
+      .expect(200);
+
+    const registrationCookie = getRefreshCookie(registrationResponse);
+    const loginCookie = getRefreshCookie(loginResponse);
+    expect(registrationCookie.split('; ').slice(1)).toEqual(
+      loginCookie.split('; ').slice(1),
+    );
   });
 
   it('rejects invalid credentials with a generic 401 and no refresh cookie', async () => {
@@ -795,6 +924,12 @@ describe('API (e2e)', () => {
   });
 
   afterEach(async () => {
+    if (createdUserIds.length) {
+      const userIds = createdUserIds.splice(0);
+      await prisma.session.deleteMany({ where: { userId: { in: userIds } } });
+      await prisma.user.deleteMany({ where: { id: { in: userIds } } });
+    }
+
     if (createdTaskIds.length) {
       await prisma.task.deleteMany({
         where: { id: { in: createdTaskIds.splice(0) } },

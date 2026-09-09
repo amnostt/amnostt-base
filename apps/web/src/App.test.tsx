@@ -23,6 +23,7 @@ const user = {
 function auth(overrides: Partial<AuthRepository> = {}): AuthRepository {
   return {
     login: vi.fn(),
+    register: vi.fn(),
     restore: vi
       .fn()
       .mockResolvedValue({ accessToken: 'token', currentUser: user }),
@@ -76,6 +77,67 @@ afterEach(() => {
 });
 
 describe('App session integration', () => {
+  it('renders the public registration route and authenticates after registration', async () => {
+    window.history.pushState({}, '', '/register');
+    const api = unauth({
+      register: vi.fn().mockResolvedValue({
+        accessToken: 'registration-token',
+        currentUser: user,
+      }),
+    });
+    renderIntegration(api);
+
+    expect(
+      await screen.findByRole('heading', { name: 'Create account' }),
+    ).toBeInTheDocument();
+    const formUser = userEvent.setup();
+    await formUser.type(screen.getByLabelText('Email'), 'ada@example.com');
+    await formUser.type(screen.getByLabelText('Password'), 'a'.repeat(12));
+    await formUser.click(screen.getByRole('button', { name: 'Create account' }));
+
+    expect(await screen.findByText('Role: Admin')).toBeInTheDocument();
+    expect(api.register).toHaveBeenCalledWith({
+      email: 'ada@example.com',
+      password: 'a'.repeat(12),
+    });
+  });
+
+  it('shows a duplicate-email registration error without authenticating', async () => {
+    window.history.pushState({}, '', '/register');
+    const api = unauth({
+      register: vi.fn().mockRejectedValue(new ApiError(409, 'CONFLICT')),
+    });
+    renderIntegration(api);
+
+    await screen.findByRole('heading', { name: 'Create account' });
+    const formUser = userEvent.setup();
+    await formUser.type(screen.getByLabelText('Email'), 'ada@example.com');
+    await formUser.type(screen.getByLabelText('Password'), 'a'.repeat(12));
+    await formUser.click(screen.getByRole('button', { name: 'Create account' }));
+
+    expect(
+      await screen.findByText('An account with this email already exists.'),
+    ).toBeInTheDocument();
+  });
+
+  it('shows a throttling registration error without authenticating', async () => {
+    window.history.pushState({}, '', '/register');
+    const api = unauth({
+      register: vi.fn().mockRejectedValue(new ApiError(429, 'TOO_MANY_REQUESTS')),
+    });
+    renderIntegration(api);
+
+    await screen.findByRole('heading', { name: 'Create account' });
+    const formUser = userEvent.setup();
+    await formUser.type(screen.getByLabelText('Email'), 'ada@example.com');
+    await formUser.type(screen.getByLabelText('Password'), 'a'.repeat(12));
+    await formUser.click(screen.getByRole('button', { name: 'Create account' }));
+
+    expect(
+      await screen.findByText('Too many registration attempts. Please try again later.'),
+    ).toBeInTheDocument();
+  });
+
   it('renders login validation errors without submitting invalid credentials', async () => {
     const api = unauth({ login: vi.fn() });
     renderIntegration(api);

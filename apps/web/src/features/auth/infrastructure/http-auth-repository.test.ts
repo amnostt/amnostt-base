@@ -15,6 +15,7 @@ describe('HttpAuthRepository', () => {
     const request = vi
       .fn()
       .mockResolvedValueOnce({ accessToken: 'token', currentUser: user })
+      .mockResolvedValueOnce({ accessToken: 'registered-token', currentUser: user })
       .mockResolvedValueOnce({ accessToken: 'refresh-token' })
       .mockResolvedValueOnce({ currentUser: user })
       .mockResolvedValueOnce(undefined);
@@ -29,6 +30,12 @@ describe('HttpAuthRepository', () => {
       accessToken: 'token',
       currentUser: user,
     });
+    await expect(
+      repository.register({ email: 'new@example.com', password: 'a'.repeat(12) }),
+    ).resolves.toEqual({
+      accessToken: 'registered-token',
+      currentUser: user,
+    });
     await expect(repository.restore()).resolves.toEqual({
       accessToken: 'refresh-token',
       currentUser: user,
@@ -39,6 +46,7 @@ describe('HttpAuthRepository', () => {
       request.mock.calls.map(([path, init]) => [path, init?.method]),
     ).toEqual([
       ['/auth/login', 'POST'],
+      ['/auth/register', 'POST'],
       ['/auth/refresh', 'POST'],
       ['/auth/me', 'GET'],
       ['/auth/logout', 'POST'],
@@ -47,10 +55,14 @@ describe('HttpAuthRepository', () => {
       email: 'a@example.com',
       password: 'secret',
     });
+    expect(JSON.parse(request.mock.calls[1][1]?.body as string)).toEqual({
+      email: 'new@example.com',
+      password: 'a'.repeat(12),
+    });
     expect(request.mock.calls[0][1]?.headers).toEqual({
       'Content-Type': 'application/json',
     });
-    expect(request.mock.calls[2][1]?.headers).toEqual({
+    expect(request.mock.calls[3][1]?.headers).toEqual({
       Authorization: 'Bearer refresh-token',
     });
   });

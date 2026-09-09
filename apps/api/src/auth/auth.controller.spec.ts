@@ -5,6 +5,7 @@ import { AuthService } from './auth.service';
 
 describe('AuthController', () => {
   const login = jest.fn();
+  const register = jest.fn();
   const refresh = jest.fn();
   const logout = jest.fn();
   const cookie = jest.fn();
@@ -12,6 +13,7 @@ describe('AuthController', () => {
 
   const authService = {
     login,
+    register,
     refresh,
     logout,
   } as unknown as AuthService;
@@ -84,6 +86,52 @@ describe('AuthController', () => {
       path: '/api/auth',
       maxAge: 604800000,
     });
+  });
+
+  it('should set the login-equivalent refresh cookie for registration', async () => {
+    register.mockResolvedValue({
+      accessToken: 'registration-access-token',
+      refreshToken: 'registration-refresh-token',
+      currentUser: {
+        id: 'new-user-id',
+        email: 'new@example.com',
+        name: 'new@example.com',
+        role: 'Member',
+        permissions: ['tasks:read:own'],
+      },
+    });
+
+    await expect(
+      controller.register(
+        { email: 'new@example.com', password: 'a'.repeat(12) },
+        response,
+      ),
+    ).resolves.toEqual({
+      accessToken: 'registration-access-token',
+      currentUser: {
+        id: 'new-user-id',
+        email: 'new@example.com',
+        name: 'new@example.com',
+        role: 'Member',
+        permissions: ['tasks:read:own'],
+      },
+    });
+
+    expect(register).toHaveBeenCalledWith({
+      email: 'new@example.com',
+      password: 'a'.repeat(12),
+    });
+    expect(cookie).toHaveBeenCalledWith(
+      'refresh_token',
+      'registration-refresh-token',
+      {
+        httpOnly: true,
+        secure: false,
+        sameSite: 'strict',
+        path: '/api/auth',
+        maxAge: 604800000,
+      },
+    );
   });
 
   it('should reject insecure cookies in production during construction', () => {

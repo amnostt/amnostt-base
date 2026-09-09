@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   InternalServerErrorException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -62,6 +63,7 @@ describe('AuthService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    runTransaction.mockReset();
     signedSessionId = '';
     getConfigValue.mockImplementation((key: string) =>
       key === 'AUTH_REGISTRATION_DEFAULT_ROLE' ? 'Member' : undefined,
@@ -240,6 +242,155 @@ describe('AuthService', () => {
         refreshTokenHash: 'refresh-token-hash',
         expiresAt,
       },
+    });
+  });
+
+  describe('registration', () => {
+    const registrationInput = {
+      email: ' New@Example.com ',
+      password: 'a'.repeat(12),
+    };
+
+    const configureRegistrationTransaction = () => {
+      runTransaction.mockImplementation(
+        async (
+          callback: (transaction: {
+            role: { findUnique: jest.Mock };
+            user: { create: jest.Mock };
+            session: { create: jest.Mock };
+          }) => Promise<unknown>,
+        ) =>
+          callback({
+            role: { findUnique: findUniqueRole },
+            user: { create: createUser },
+            session: { create: createSession },
+          }),
+      );
+    };
+
+    beforeEach(() => {
+      findUniqueUser.mockResolvedValue(null);
+      findUniqueRole.mockResolvedValue({
+        id: 'member-role-id',
+        name: 'Member',
+        isPrivileged: false,
+      });
+      createUser.mockResolvedValue({
+        id: 'new-user-id',
+        email: 'new@example.com',
+        name: 'new@example.com',
+        role: {
+          name: 'Member',
+          rolePermissions: [{ permission: { code: 'tasks:read:own' } }],
+        },
+      });
+      createSession.mockResolvedValue({});
+      signTokenPair.mockResolvedValue({
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+      });
+      hashRefreshToken.mockReturnValue('refresh-token-hash');
+      getRefreshTokenExpiresAt.mockReturnValue(
+        new Date('2026-01-08T00:00:00.000Z'),
+      );
+      configureRegistrationTransaction();
+    });
+
+    it('normalizes the email, assigns the safe role, creates one session, and returns login-equivalent tokens', async () => {
+      await expect(service.register(registrationInput)).resolves.toEqual({
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+        currentUser: {
+          id: 'new-user-id',
+          email: 'new@example.com',
+          name: 'new@example.com',
+          role: 'Member',
+          permissions: ['tasks:read:own'],
+        },
+      });
+
+      expect(findUniqueUser).toHaveBeenCalledWith({
+        where: { email: 'new@example.com' },
+        select: { id: true },
+      });
+      expect(createUser).toHaveBeenCalledWith({
+        data: {
+          email: 'new@example.com',
+          name: 'new@example.com',
+          passwordHash: expect.any(String) as string,
+          roleId: 'member-role-id',
+        },
+        include: {
+          role: {
+            include: {
+              rolePermissions: {
+                include: { permission: true },
+              },
+            },
+          },
+        },
+      });
+      expect(createSession).toHaveBeenCalledWith({
+        data: {
+          id: expect.any(String) as string,
+          userId: 'new-user-id',
+          refreshTokenHash: 'refresh-token-hash',
+          expiresAt: new Date('2026-01-08T00:00:00.000Z'),
+        },
+      });
+    });
+
+    it('returns conflict for a normalized duplicate without creating a user or session', async () => {
+      findUniqueUser.mockResolvedValue({ id: 'existing-user-id' });
+
+      await expect(
+        service.register({
+          email: ' EXISTING@example.com ',
+          password: 'a'.repeat(12),
+        }),
+      ).rejects.toEqual(new ConflictException('Email is already registered'));
+
+      expect(runTransaction).not.toHaveBeenCalled();
+      expect(createUser).not.toHaveBeenCalled();
+      expect(createSession).not.toHaveBeenCalled();
+    });
+
+    it('fails safely for an unavailable default role without writing user or session data', async () => {
+      getConfigValue.mockReturnValue('Missing Role');
+      findUniqueRole.mockResolvedValue(null);
+
+      await expect(service.register(registrationInput)).rejects.toEqual(
+        new InternalServerErrorException(
+          'Registration default role is unavailable or privileged',
+        ),
+      );
+
+      expect(createUser).not.toHaveBeenCalled();
+      expect(createSession).not.toHaveBeenCalled();
+    });
+
+    it('retries a serializable transaction once after P2034 and then succeeds', async () => {
+      runTransaction
+        .mockRejectedValueOnce({ code: 'P2034' })
+        .mockImplementationOnce(
+          async (
+            callback: (transaction: {
+              role: { findUnique: jest.Mock };
+              user: { create: jest.Mock };
+              session: { create: jest.Mock };
+            }) => Promise<unknown>,
+          ) =>
+            callback({
+              role: { findUnique: findUniqueRole },
+              user: { create: createUser },
+              session: { create: createSession },
+            }),
+        );
+
+      await expect(service.register(registrationInput)).resolves.toEqual(
+        expect.objectContaining({ accessToken: 'access-token' }),
+      );
+      expect(runTransaction).toHaveBeenCalledTimes(2);
     });
   });
 

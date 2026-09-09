@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -60,6 +61,9 @@ export function LoginForm({ expired = false }: { expired?: boolean }) {
         <Button type="submit" disabled={submitting}>
           {submitting ? 'Signing in…' : 'Sign in'}
         </Button>
+        <p>
+          Need an account? <Link to="/register">Create one</Link>
+        </p>
       </form>
     </main>
   );

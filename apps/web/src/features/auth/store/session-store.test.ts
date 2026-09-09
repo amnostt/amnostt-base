@@ -15,6 +15,9 @@ const api = (overrides: Partial<AuthRepository> = {}): AuthRepository => ({
   login: vi
     .fn()
     .mockResolvedValue({ accessToken: 'login-token', currentUser: user }),
+  register: vi
+    .fn()
+    .mockResolvedValue({ accessToken: 'registration-token', currentUser: user }),
   restore: vi
     .fn()
     .mockResolvedValue({ accessToken: 'restore-token', currentUser: user }),
@@ -31,6 +34,25 @@ const deferred = <T>() => {
 };
 
 describe('SessionStore', () => {
+  it('registers through the auth repository and publishes the authenticated session', async () => {
+    const auth = api();
+    const store = createSessionStore(auth);
+
+    await store.getState().register({
+      email: 'new@example.com',
+      password: 'a'.repeat(12),
+    });
+
+    expect(auth.register).toHaveBeenCalledWith({
+      email: 'new@example.com',
+      password: 'a'.repeat(12),
+    });
+    expect(store.getState().snapshot).toEqual({
+      status: 'authenticated',
+      user,
+    });
+  });
+
   it('bootstraps idempotently through restore and logs in without another identity request', async () => {
     const auth = api();
     const store = createSessionStore(auth);

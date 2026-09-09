@@ -11,6 +11,11 @@ export interface LoginInput {
   password: string;
 }
 
+export interface RegisterInput {
+  email: string;
+  password: string;
+}
+
 export interface Session {
   accessToken: string;
   currentUser: CurrentUser;
@@ -20,6 +25,7 @@ export type SessionState =
   | { status: 'bootstrap-loading' }
   | { status: 'unauthenticated'; notice?: 'session-expired' }
   | { status: 'login-submitting'; email: string }
+  | { status: 'register-submitting'; email: string }
   | { status: 'authenticated'; user: CurrentUser }
   | { status: 'request-refreshing' }
   | { status: 'logout-pending' };

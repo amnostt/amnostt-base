@@ -17,6 +17,8 @@ import type { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import type { CurrentUser } from './auth.types';
 import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
+import { RegistrationThrottleGuard } from './registration-throttle.guard';
 
 const REFRESH_COOKIE_NAME = 'refresh_token';
 const REFRESH_COOKIE_PATH = '/api/auth';
@@ -55,6 +57,27 @@ export class AuthController {
   }> {
     const { accessToken, refreshToken, currentUser } =
       await this.authService.login(loginDto);
+
+    this.setRefreshCookie(response, refreshToken);
+
+    return {
+      accessToken,
+      currentUser,
+    };
+  }
+
+  @Post('register')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(RegistrationThrottleGuard)
+  async register(
+    @Body() registerDto: RegisterDto,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<{
+    accessToken: string;
+    currentUser: CurrentUser;
+  }> {
+    const { accessToken, refreshToken, currentUser } =
+      await this.authService.register(registerDto);
 
     this.setRefreshCookie(response, refreshToken);
 

@@ -22,3 +22,7 @@ export interface AuthTokenPair {
 export interface LoginResult extends AuthTokenPair {
   currentUser: CurrentUser;
 }
+
+export function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}

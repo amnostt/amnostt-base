@@ -5,6 +5,8 @@ export interface LoginResponse {
   currentUser: CurrentUser;
 }
 
+export type RegisterResponse = LoginResponse;
+
 export interface MeResponse {
   currentUser: CurrentUser;
 }
