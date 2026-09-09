@@ -62,9 +62,7 @@ describe('task read policy', () => {
     expect(() => assertTaskOwnerFilter(admin, 'other-id')).not.toThrow();
   });
 
-  it('requires the own read grant before any scope can broaden access', () => {
-    expect(() => getTaskListScope(anyOnly)).toThrow(
-      new ForbiddenException('Insufficient permissions'),
-    );
+  it('allows an any-only grant to list without an owner predicate', () => {
+    expect(getTaskListScope(anyOnly)).toEqual({});
   });
 });

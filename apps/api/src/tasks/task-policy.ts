@@ -87,9 +87,7 @@ function assertTaskReadPermission(currentUser: CurrentUser): void {
 }
 
 function assertTaskListReadPermission(currentUser: CurrentUser): void {
-  if (!currentUser.permissions.includes('tasks:read:own')) {
-    throw new ForbiddenException('Insufficient permissions');
-  }
+  assertTaskReadPermission(currentUser);
 }
 
 function assertTaskUpdatePermission(currentUser: CurrentUser): void {

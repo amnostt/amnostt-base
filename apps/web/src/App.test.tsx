@@ -86,7 +86,11 @@ describe('App session integration', () => {
         currentUser: user,
       }),
     });
-    renderIntegration(api);
+    const requestResponse = vi.fn().mockResolvedValue({
+      data: [],
+      meta: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
+    });
+    renderWithResponse(api, requestResponse);
 
     expect(
       await screen.findByRole('heading', { name: 'Create account' }),
@@ -421,7 +425,7 @@ describe('App session integration', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
-  it('keeps any-only readers in the shell with forbidden content and no task navigation', async () => {
+  it('keeps any-only readers in the task list with task navigation', async () => {
     window.history.pushState({}, '', '/tasks');
     const anyOnlyUser = { ...user, permissions: ['tasks:read:any'] };
     const api = auth({
@@ -429,14 +433,16 @@ describe('App session integration', () => {
         .fn()
         .mockResolvedValue({ accessToken: 'token', currentUser: anyOnlyUser }),
     });
+    const requestResponse = vi.fn().mockResolvedValue({
+      data: [],
+      meta: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
+    });
 
-    renderIntegration(api);
+    renderWithResponse(api, requestResponse);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('403');
+    expect(await screen.findByText('No tasks yet.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Home' })).toBeInTheDocument();
-    expect(
-      screen.queryByRole('link', { name: 'Tasks' }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Tasks' })).toBeInTheDocument();
   });
 
   it('keeps task navigation and list access for users with the own-read grant', async () => {
@@ -458,6 +464,50 @@ describe('App session integration', () => {
       await screen.findByRole('link', { name: 'Tasks' }),
     ).toBeInTheDocument();
     expect(await screen.findByText('No tasks yet.')).toBeInTheDocument();
+  });
+
+  it('forbids a read-only user from opening the create route', async () => {
+    window.history.pushState({}, '', '/tasks/new');
+    const readOnlyUser = { ...user, permissions: ['tasks:read:own'] };
+    const api = auth({
+      restore: vi
+        .fn()
+        .mockResolvedValue({ accessToken: 'token', currentUser: readOnlyUser }),
+    });
+    const requestResponse = vi.fn().mockResolvedValue({
+      data: [],
+      meta: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
+    });
+
+    renderWithResponse(api, requestResponse);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('403');
+    expect(
+      screen.queryByRole('dialog', { name: 'Create task panel' }),
+    ).not.toBeInTheDocument();
+    expect(requestResponse).not.toHaveBeenCalled();
+  });
+
+  it('forbids a read-only user from opening the edit route', async () => {
+    window.history.pushState({}, '', '/tasks/task-id/edit');
+    const readOnlyUser = { ...user, permissions: ['tasks:read:any'] };
+    const api = auth({
+      restore: vi
+        .fn()
+        .mockResolvedValue({ accessToken: 'token', currentUser: readOnlyUser }),
+    });
+    const requestResponse = vi.fn().mockResolvedValue({
+      data: [],
+      meta: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
+    });
+
+    renderWithResponse(api, requestResponse);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('403');
+    expect(
+      screen.queryByRole('dialog', { name: 'Edit task panel' }),
+    ).not.toBeInTheDocument();
+    expect(requestResponse).not.toHaveBeenCalled();
   });
 
   it('returns to the originally requested task route after login without a refresh', async () => {

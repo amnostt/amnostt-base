@@ -19,7 +19,9 @@ export function AuthenticatedShell() {
   )
     return null;
   const user = snapshot.status === 'authenticated' ? snapshot.user : undefined;
-  const canReadTasks = user?.permissions.includes('tasks:read:own');
+  const canReadTasks =
+    user?.permissions.includes('tasks:read:own') ||
+    user?.permissions.includes('tasks:read:any');
   return (
     <SidebarProvider>
       <Sidebar>

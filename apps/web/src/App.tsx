@@ -46,11 +46,19 @@ function NotFoundPage() {
   );
 }
 
-function TaskRoute() {
+type TaskRouteAction = 'create' | 'update';
+
+function TaskRoute({ action }: { action?: TaskRouteAction }) {
   const { snapshot } = useSession();
   if (snapshot.status !== 'authenticated') return null;
-  const canRead = snapshot.user.permissions.includes('tasks:read:own');
-  return canRead ? <TaskListPage /> : <ForbiddenPage />;
+  const canRead =
+    snapshot.user.permissions.includes('tasks:read:own') ||
+    snapshot.user.permissions.includes('tasks:read:any');
+  const canAct =
+    !action ||
+    snapshot.user.permissions.includes(`tasks:${action}:own`) ||
+    snapshot.user.permissions.includes(`tasks:${action}:any`);
+  return canRead && canAct ? <TaskListPage /> : <ForbiddenPage />;
 }
 
 function AuthenticatedLoginRedirect() {
@@ -66,8 +74,8 @@ function AuthenticatedRoutes() {
       <Route element={<AuthenticatedShell />}>
         <Route path="/" element={<HomePage />} />
         <Route path="/tasks" element={<TaskRoute />} />
-        <Route path="/tasks/new" element={<TaskRoute />} />
-        <Route path="/tasks/:id/edit" element={<TaskRoute />} />
+        <Route path="/tasks/new" element={<TaskRoute action="create" />} />
+        <Route path="/tasks/:id/edit" element={<TaskRoute action="update" />} />
         <Route path="/403" element={<ForbiddenPage />} />
         <Route path="/login" element={<AuthenticatedLoginRedirect />} />
         <Route path="/register" element={<AuthenticatedLoginRedirect />} />

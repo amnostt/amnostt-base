@@ -43,19 +43,26 @@ export class TasksService {
     currentUser: CurrentUser,
     taskDto: TaskCreateDto,
   ): Promise<TaskResponse> {
-    const task = await this.prisma.task.create({
-      data: {
-        ownerId: getTaskCreateOwnerId(currentUser, taskDto.ownerId),
-        title: taskDto.title,
-        description: taskDto.description ?? null,
-        status: taskDto.status ?? TaskStatus.pending,
-        dueDate: taskDto.dueDate
-          ? parseTaskCalendarDate(taskDto.dueDate)
-          : null,
-      },
-    });
+    try {
+      const task = await this.prisma.task.create({
+        data: {
+          ownerId: getTaskCreateOwnerId(currentUser, taskDto.ownerId),
+          title: taskDto.title,
+          description: taskDto.description ?? null,
+          status: taskDto.status ?? TaskStatus.pending,
+          dueDate: taskDto.dueDate
+            ? parseTaskCalendarDate(taskDto.dueDate)
+            : null,
+        },
+      });
 
-    return this.toResponse(task);
+      return this.toResponse(task);
+    } catch (error) {
+      if (this.hasPrismaCode(error, 'P2003')) {
+        throw new NotFoundException('Task owner not found');
+      }
+      throw error;
+    }
   }
 
   async findAll(
@@ -90,15 +97,19 @@ export class TasksService {
     const field = (
       descending ? query.sort.slice(1) : query.sort
     ) as keyof Prisma.TaskOrderByWithRelationInput;
-    const [tasks, totalItems] = await Promise.all([
-      this.prisma.task.findMany({
-        where,
-        orderBy: { [field]: descending ? 'desc' : 'asc' },
-        skip: (query.page - 1) * query.limit,
-        take: query.limit,
-      }),
-      this.prisma.task.count({ where }),
-    ]);
+    const [tasks, totalItems] = await this.prisma.$transaction(
+      (transaction) =>
+        Promise.all([
+          transaction.task.findMany({
+            where,
+            orderBy: [{ [field]: descending ? 'desc' : 'asc' }, { id: 'asc' }],
+            skip: (query.page - 1) * query.limit,
+            take: query.limit,
+          }),
+          transaction.task.count({ where }),
+        ]),
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
 
     return {
       data: tasks.map((task) => this.toResponse(task)),
@@ -116,27 +127,16 @@ export class TasksService {
     id: string,
     taskDto: TaskUpdateDto,
   ): Promise<TaskResponse> {
-    const task = await this.prisma.task.findFirst({
-      where: getTaskUpdateScope(currentUser, id),
-    });
-    if (!task) throw new NotFoundException('Task not found');
+    const updatedTask = await this.prisma.$transaction(async (transaction) => {
+      const result = await transaction.task.updateMany({
+        where: getTaskUpdateScope(currentUser, id),
+        data: this.getUpdateData(taskDto),
+      });
+      if (result.count !== 1) throw new NotFoundException('Task not found');
 
-    const updatedTask = await this.prisma.task.update({
-      where: { id: task.id },
-      data: {
-        ...(taskDto.title !== undefined ? { title: taskDto.title } : {}),
-        ...(taskDto.description !== undefined
-          ? { description: taskDto.description }
-          : {}),
-        ...(taskDto.status !== undefined ? { status: taskDto.status } : {}),
-        ...(taskDto.dueDate !== undefined
-          ? {
-              dueDate: taskDto.dueDate
-                ? parseTaskCalendarDate(taskDto.dueDate)
-                : null,
-            }
-          : {}),
-      },
+      const task = await transaction.task.findUnique({ where: { id } });
+      if (!task) throw new NotFoundException('Task not found');
+      return task;
     });
 
     return this.toResponse(updatedTask);
@@ -151,12 +151,10 @@ export class TasksService {
   }
 
   async remove(currentUser: CurrentUser, id: string): Promise<void> {
-    const task = await this.prisma.task.findFirst({
+    const result = await this.prisma.task.deleteMany({
       where: getTaskDeleteScope(currentUser, id),
     });
-    if (!task) throw new NotFoundException('Task not found');
-
-    await this.prisma.task.delete({ where: { id: task.id } });
+    if (result.count !== 1) throw new NotFoundException('Task not found');
   }
 
   private toResponse(task: {
@@ -173,5 +171,34 @@ export class TasksService {
       ...task,
       dueDate: task.dueDate ? serializeTaskCalendarDate(task.dueDate) : null,
     };
+  }
+
+  private getUpdateData(
+    taskDto: TaskUpdateDto,
+  ): Prisma.TaskUpdateManyMutationInput {
+    return {
+      ...(taskDto.title !== undefined ? { title: taskDto.title } : {}),
+      ...(taskDto.description !== undefined
+        ? { description: taskDto.description }
+        : {}),
+      ...(taskDto.status !== undefined ? { status: taskDto.status } : {}),
+      ...(taskDto.dueDate !== undefined
+        ? {
+            dueDate: taskDto.dueDate
+              ? parseTaskCalendarDate(taskDto.dueDate)
+              : null,
+          }
+        : {}),
+    };
+  }
+
+  private hasPrismaCode(error: unknown, code: string): boolean {
+    return (
+      (error instanceof Prisma.PrismaClientKnownRequestError
+        ? error.code
+        : typeof error === 'object' && error !== null && 'code' in error
+          ? (error as { code?: unknown }).code
+          : undefined) === code
+    );
   }
 }
