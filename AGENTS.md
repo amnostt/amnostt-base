@@ -25,13 +25,13 @@
 - `packages/*` está reservado y actualmente vacío; no supongas que existen paquetes compartidos.
 - El `pnpm dev` de la raíz ejecuta web y API en paralelo; usa `pnpm dev:web` o `pnpm dev:api` para una sola aplicación.
 - La API inicia `AppModule`, expone el prefijo global `/api` y aplica validación global estricta (se rechazan los campos desconocidos).
-- La superficie implementada de la API es `GET /api/health`; el placeholder web llama a `${VITE_API_URL}/health` y usa `http://localhost:3000/api` por defecto.
-- Los documentos de producto (`docs/AUTH.md`, `docs/CRUD.md`, `docs/UI.md`, `docs/CRUD_PLAN.md`) registran planes y decisiones, no comportamiento implementado.
+- The API implements authentication, task CRUD, `GET /api/health` liveness, and `GET /api/health/ready` database readiness; the web app uses `http://localhost:3000/api` by default.
+- Product documents mix implemented contracts and future plans; verify the corresponding code before describing behavior.
 
 ## Comandos y verificaciones específicas
 
-- Los scripts de la raíz son `pnpm lint`, `pnpm test` y `pnpm build`; hay filtros de paquetes para build/lint de API y web.
-- El `pnpm test` de la raíz ejecuta solo las pruebas unitarias de la API. Las variantes de API son `pnpm --filter @amnostt/api test:watch`, `test:cov` y `test:e2e`.
+- Root scripts include `pnpm lint`, `pnpm test`, `pnpm test:e2e`, and `pnpm build`; root unit tests run API Jest and Web Vitest suites.
+- API variants are `pnpm --filter @amnostt/api test:watch`, `test:cov`, and `test:e2e`; E2E remains explicit because it needs PostgreSQL and `DATABASE_URL`.
 - Las pruebas E2E requieren PostgreSQL y `DATABASE_URL`, porque `AppModule` conecta Prisma durante el inicio.
 - No existe un script independiente de typecheck: web comprueba tipos durante `build` y la compilación de la API forma parte de `nest build`.
 - Solo la API tiene formatter: `pnpm --filter @amnostt/api format`; modifica archivos fuente y de pruebas. No existe formatter para la raíz ni para web.

@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   HttpException,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -93,7 +94,8 @@ describe('ApiExceptionFilter', () => {
     }
   });
 
-  it('uses a safe internal error envelope for unexpected exceptions', () => {
+  it('uses a safe internal error envelope and logs unexpected exceptions', () => {
+    const logger = jest.spyOn(Logger, 'error').mockImplementation();
     const filter = new ApiExceptionFilter();
     const { host, status, body } = createHost();
 
@@ -107,6 +109,12 @@ describe('ApiExceptionFilter', () => {
       'database password leaked',
     );
     expect(responseBody.error).not.toHaveProperty('details');
+    expect(logger).toHaveBeenCalledWith(
+      'Unhandled HTTP exception',
+      expect.any(String),
+      ApiExceptionFilter.name,
+    );
+    logger.mockRestore();
   });
 
   it('uses HTTP_ERROR for an unmapped HTTP status', () => {

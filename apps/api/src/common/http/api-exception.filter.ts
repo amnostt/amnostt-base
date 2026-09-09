@@ -3,6 +3,7 @@ import {
   Catch,
   ExceptionFilter,
   HttpException,
+  Logger,
 } from '@nestjs/common';
 import type { Response } from 'express';
 
@@ -40,6 +41,14 @@ export class ApiExceptionFilter implements ExceptionFilter {
     const status =
       exception instanceof HttpException ? exception.getStatus() : 500;
     const error = this.normalize(exception, status);
+
+    if (status >= 500) {
+      Logger.error(
+        'Unhandled HTTP exception',
+        exception instanceof Error ? exception.stack : undefined,
+        ApiExceptionFilter.name,
+      );
+    }
 
     response.status(status).json({ error });
   }
