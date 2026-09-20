@@ -1,124 +1,129 @@
-# Interfaz autenticada
+# Contrato canónico de la interfaz web
 
-Este documento registra la composición y el comportamiento confirmados para la interfaz después del inicio de sesión. El frontend utilizará shadcn/ui como base de componentes, conservando su comportamiento predeterminado salvo cuando se definan reglas explícitas de la aplicación.
+Este documento es la referencia única para la interfaz web implementada y sus decisiones de diseño. Está escrito en español profesional; el texto visible de la aplicación permanece en inglés. Las afirmaciones se limitan a la implementación y las pruebas existentes.
 
-## Inicio
+## Propósito y leyenda de evidencia
 
-Después del login, el usuario accede a una página de inicio neutral con un mensaje personalizado de bienvenida. El espacio queda preparado para incorporar métricas en el futuro, pero inicialmente no muestra datos ni indicadores artificiales.
+| Estado                      | Significado                                                                              |
+| --------------------------- | ---------------------------------------------------------------------------------------- |
+| **Implementado y cubierto** | El comportamiento aparece en código vigente y tiene una prueba relevante.                |
+| **Brecha conocida**         | Falta una abstracción o existe una limitación actual; no debe describirse como resuelta. |
+| **Intención futura**        | Dirección prevista, no disponible en la implementación actual.                           |
 
-## Estructura general
+## Ruta rápida para contribuidores
 
-La aplicación autenticada utiliza:
+1. Consultar primero los fundamentos y la sección de arquitectura antes de añadir un componente o una pantalla.
+2. Trabajar dentro de la carpeta de la funcionalidad (`features/auth` o `features/tasks`) y reutilizar las primitivas existentes.
+3. Verificar los estados de carga, error, vacío, permisos y navegación con las pruebas indicadas en el mapa de evidencia.
+4. Actualizar este contrato solo cuando el comportamiento implementado o una decisión canónica cambie; no convertir la intención futura en una afirmación de implementación.
 
-- Una barra lateral colapsable basada en el componente `Sidebar` de shadcn/ui.
-- Una barra superior con el control de la barra lateral y el breadcrumb de la ruta actual.
-- Un área de contenido fluida que ocupa el espacio disponible con márgenes internos consistentes.
+## Fundamentos visuales y primitivas reutilizables
 
-No se personalizará inicialmente el comportamiento responsive o la persistencia de estado de la barra lateral; se mantendrá el comportamiento predeterminado de shadcn/ui.
+La base canónica combina:
 
-## Navegación
+- **shadcn/ui** con configuración `base-vega`.
+- **Base UI** para los componentes y patrones compatibles disponibles en el proyecto.
+- **Vega** como estilo de la configuración de shadcn/ui.
+- Variables CSS semánticas de color neutral, con conjuntos para modo claro (`:root`) y oscuro (`.dark`).
+- **Lucide** como biblioteca de iconos.
+- **Inter Variable** como tipografía sans-serif.
 
-La barra lateral contiene:
+Los tokens semánticos incluyen fondo, texto, tarjeta, popover, primario, secundario, muted, accent, destructive, borde, input, ring y colores de sidebar. Los componentes deben consumir estos tokens en lugar de introducir colores aislados.
 
-- Inicio, siempre visible.
-- Tareas, visible según permisos.
-- Administración, visible según permisos:
-  - Usuarios.
-  - Roles y permisos.
-- Menú del usuario en la parte inferior:
-  - Perfil.
-  - Cerrar sesión.
+Las primitivas compartidas actualmente disponibles incluyen `Button`, `Input`, `Label`, `AlertDialog`, `Sheet`, `Toast`, `Sidebar` y utilidades de foco modal. Las pantallas pueden usar elementos nativos cuando no exista una abstracción compartida; esa situación se registra como brecha, no como una primitiva disponible.
 
-Las opciones se muestran de acuerdo con los permisos efectivos. El backend continúa siendo la autoridad definitiva para autorizar cada operación.
+## Arquitectura y organización
 
-## Páginas de listado
+La organización es **feature-first** dentro de `apps/web/src/features`.
 
-Los listados CRUD utilizan esta composición:
+- **Auth:** el dominio define los modelos y el contrato `AuthRepository`; `HttpAuthRepository` integra HTTP; `SessionStore`, sus selectores y `SessionProvider` coordinan el estado y las acciones de sesión.
+- **Tasks:** existe `TaskRepository` para el listado y funciones de acceso para crear, actualizar y eliminar. La orquestación del listado, la edición, la navegación, la consulta y las acciones destructivas permanece local a `TaskListPage`.
+- La aplicación no implementa Store + Repository de forma uniforme en todas las funcionalidades. No se debe presentar Tasks como si tuviera la misma separación de coordinación que Auth.
 
-1. Título.
-2. Toolbar.
-3. Tabla.
-4. Paginación.
+No se crea una segunda guía arquitectónica: este contrato describe únicamente las decisiones de UI y remite al código vigente como evidencia.
 
-### Toolbar
+## Shell autenticado y Sidebar
 
-La toolbar puede contener:
+El shell autenticado usa `SidebarProvider`, `Sidebar`, `SidebarTrigger`, `SidebarContent`, `SidebarFooter`, `SidebarInset` y un `Outlet` para envolver las rutas protegidas. Incluye un encabezado con el control de navegación y la ruta actual, más un área de contenido fluida.
 
-- Búsqueda.
-- Filtros.
-- Configuración de visibilidad de columnas.
-- Acciones secundarias específicas del módulo.
-- Acción principal.
+La Sidebar canónica es:
 
-La configuración de tabla permite únicamente mostrar u ocultar columnas. No se incluyen inicialmente cambios de densidad, reordenamiento, selección múltiple ni acciones masivas.
+- **Responsive:** en viewport estrecho funciona como drawer móvil; en desktop se muestra como aside.
+- **Colapsable:** alterna entre estados expandido y colapsado mediante el control compartido.
+- **Persistida por cookie:** el estado desktop se guarda en `sidebar_state` y se restaura al montar el proveedor.
 
-### Tabla
+La navegación implementada expone Inicio y Tareas según el acceso de lectura efectivo, además de la acción de cierre de sesión. La visibilidad en el cliente es una ayuda de navegación, no una frontera de seguridad.
 
-- Editar y eliminar aparecen en un menú de tres puntos al final de cada fila y respetan los permisos del usuario.
-- Las filas no son clicables mientras no exista una vista de detalle.
-- La paginación, búsqueda, filtros y ordenamiento se representan en la URL.
+## Auth y superficies de sesión
 
-### Estados
+Las superficies actuales son:
 
-- Durante la carga se muestran filas esqueleto que conservan la estructura de la tabla.
-- Si no existen registros, se muestra un estado vacío con la acción principal cuando el usuario puede crear.
-- Si la búsqueda o los filtros no producen resultados, se muestra un mensaje específico y una acción para limpiar los criterios.
-- Si ocurre un error, se muestra una acción para reintentar.
+- Rutas públicas de inicio de sesión y registro, con validación, estado de envío y errores visibles.
+- Estado de carga durante el bootstrap de sesión.
+- Inicio de sesión, registro, restauración y cierre de sesión mediante el Store y el Repository de Auth.
+- Renovación silenciosa compartida para solicitudes concurrentes que reciben una respuesta no autorizada.
+- Cambio de contraseña en `/password`, conservando la sesión autenticada cuando tiene éxito.
+- Limpieza local y retorno al acceso cuando el cierre de sesión remoto falla o la renovación de sesión expira.
 
-## Creación y edición
+El copy visible actual es inglés (`Sign in`, `Create account`, `Loading session`, etc.). Esta documentación permanece en español y no autoriza cambiar ese copy.
 
-La creación y edición utilizan un panel lateral controlado por rutas. Cada entidad comparte un único formulario específico para ambos modos.
+## Listado de Tasks y estado de consulta
 
-- Al guardar correctamente, el panel se cierra, el listado se actualiza y se muestra una confirmación.
-- Los errores de validación aparecen junto a los campos y mantienen abierto el panel.
-- Los errores generales conservan los datos ingresados.
-- Cerrar un formulario con cambios sin guardar requiere confirmación.
+Las rutas implementadas cubren el listado, la creación y la edición de Tasks. `TaskListPage` coordina:
 
-## Acciones destructivas
+- Estados de carga con filas que conservan la estructura de la tabla.
+- Estado vacío para una colección sin registros.
+- Estado diferenciado cuando los criterios activos no producen resultados, con acción para limpiar criterios.
+- Estado de error con acción de reintento.
+- Tabla de tareas con acciones de fila en un menú accesible cuando el permiso del usuario lo permite.
+- Refresco posterior a mutaciones y preservación de la consulta al navegar hacia edición.
 
-La eliminación permanente requiere un diálogo que:
+La consulta se representa en la URL con `search`, `status`, `ownerId`, `dueDate`, `sort`, `page` y `limit`. El parser aplica valores permitidos y defaults; cambiar criterios reinicia la página. La búsqueda se desacopla mediante debounce y las solicitudes reemplazadas se abortan.
 
-- Identifique el registro afectado.
-- Indique que la acción no puede deshacerse.
-- Deshabilite la acción destructiva mientras se procesa.
-- Evite solicitudes duplicadas.
+Los controles de consulta actuales son específicos de `TaskListPage` y no constituyen todavía una abstracción compartida.
 
-## Notificaciones
+## Formularios, Sheets y validación
 
-Los toasts se utilizan únicamente para resultados breves de acciones, como creación, actualización, eliminación o fallos generales. Los errores que requieren corrección permanecen junto al formulario o la tabla y no se duplican en toasts.
+Crear y editar usan el mismo `TaskForm`, mostrado en un `Sheet` controlado por la ruta. El formulario valida título, descripción y fecha; muestra errores junto al campo, conserva los valores ante un error general y deshabilita el envío mientras guarda. Un guardado correcto cierra el panel, actualiza el listado y comunica el resultado.
 
-## Sesión
+El botón explícito de cierre de un formulario sucio abre una confirmación para descartar cambios. La confirmación actual no cubre todavía todos los caminos de cierre del `Sheet`: el overlay o la tecla Escape pueden cerrar el panel sin pasar por esa confirmación.
 
-### Cierre de sesión
+## Acciones destructivas y feedback
 
-El cierre de sesión es inmediato y no requiere confirmación:
+Eliminar una Task requiere un `AlertDialog` que identifica el registro, advierte que la acción no se puede deshacer, deshabilita la confirmación durante la solicitud y evita envíos duplicados.
 
-1. Se solicita la revocación de la sesión en el backend.
-2. Se elimina el access token de la memoria.
-3. Se redirige al login.
+Los `Toast` comunican resultados breves de acciones. Los errores que requieren corrección permanecen junto al formulario o al listado; no se duplican innecesariamente en un toast. Las pruebas de Tasks cubren estados de carga, vacío, filtro sin resultados, error y reintento, acciones de fila y eliminación.
 
-Si falla la revocación remota, el estado local se limpia igualmente.
+## Routing y autorización
 
-### Sesión expirada
+Las rutas protegidas conservan un retorno local seguro al login. Las rutas de Tasks verifican en el cliente los permisos de lectura y de la acción solicitada; un acceso insuficiente muestra `403`. Las rutas inexistentes muestran `404` dentro del shell autenticado y no redirigen silenciosamente al inicio.
 
-- Cuando expira el access token, se intenta una única renovación silenciosa.
-- Las solicitudes concurrentes esperan el mismo intento de renovación.
-- Si la renovación falla, se limpia la sesión y se redirige al login.
-- Después de autenticarse nuevamente, el usuario vuelve a la ruta protegida que intentaba visitar.
+El backend es la autoridad definitiva para autenticación y autorización. `AuthGuard` valida el token y carga la identidad; el controlador y la política de Tasks aplican los permisos `own` y `any` para leer, crear, actualizar y eliminar. Las comprobaciones de visibilidad en la UI no sustituyen esas verificaciones del servidor.
 
-## Perfil
+## Brechas conocidas
 
-El usuario puede:
+- No existen todavía abstracciones compartidas para `Card`, `Breadcrumb`, `Table`, `Select`, `Textarea`, `Menu`, `Pagination`, `Skeleton` y `EmptyState`.
+- Los controles de búsqueda, filtro, ordenamiento y paginación de Tasks siguen siendo ad hoc dentro de la funcionalidad.
+- La confirmación de formulario sucio no cubre el cierre del `Sheet` por overlay o Escape.
+- El copy visible de la aplicación es inglés; la documentación canónica es español. No se debe inferir una migración de idioma.
 
-- Consultar su nombre, correo electrónico, rol y permisos efectivos.
-- Editar únicamente su nombre.
-- Cambiar su contraseña mediante el flujo definido.
+## Intención futura
 
-El usuario no puede modificar por cuenta propia su correo electrónico ni su rol.
+Las siguientes áreas no forman parte de la implementación actual y deben permanecer etiquetadas como futuras:
 
-## Acceso y errores de ruta
+- Superficie de **Profile** para consultar o editar datos del usuario.
+- Sección de **Administration**, incluidos usuarios, roles y permisos.
+- Configuración de visibilidad de columnas en los listados.
 
-- Un usuario no autenticado es redirigido al login y se conserva la ruta solicitada.
-- Un usuario autenticado sin permisos ve una página `403` dentro del layout autenticado.
-- Una ruta inexistente muestra una página `404`.
-- No se redirige silenciosamente al inicio, porque eso ocultaría la causa del problema.
+## Mapa de evidencia
+
+| Área                          | Referencias de implementación                                                                                                                                                                                                                  | Referencias de pruebas                                                                                                                                    |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Fundamentos, tokens y aliases | `apps/web/components.json`, `apps/web/package.json`, `apps/web/src/index.css`                                                                                                                                                                  | —                                                                                                                                                         |
+| Shell y Sidebar               | `apps/web/src/features/auth/components/authenticated-shell.tsx`, `apps/web/src/components/ui/sidebar.tsx`                                                                                                                                      | `apps/web/src/components/ui/sidebar.test.tsx`, `apps/web/src/App.test.tsx`                                                                                |
+| Auth y sesión                 | `apps/web/src/features/auth/domain/auth-repository.ts`, `apps/web/src/features/auth/infrastructure/http-auth-repository.ts`, `apps/web/src/features/auth/store/session-store.ts`, `apps/web/src/features/auth/components/session-provider.tsx` | `apps/web/src/features/auth/store/session-store.test.ts`, `apps/web/src/features/auth/components/session-provider.test.tsx`, `apps/web/src/App.test.tsx`  |
+| Tasks y Repository            | `apps/web/src/features/tasks/task-list-page.tsx`, `apps/web/src/features/tasks/task-repository.ts`, `apps/web/src/features/tasks/task-form.tsx`, `apps/web/src/features/tasks/task-query.ts`                                                   | `apps/web/src/features/tasks/task-list-page.test.tsx`, `apps/web/src/features/tasks/task-form.test.tsx`, `apps/web/src/features/tasks/task-query.test.ts` |
+| Permisos y rutas              | `apps/web/src/App.tsx`, `apps/web/src/routing.ts`, `apps/web/src/features/tasks/task-permissions.ts`                                                                                                                                           | `apps/web/src/routing.test.ts`, `apps/web/src/features/tasks/task-permissions.test.ts`, `apps/web/src/App.test.tsx`                                       |
+| Autoridad del backend         | `apps/api/src/auth/auth.guard.ts`, `apps/api/src/tasks/tasks.controller.ts`, `apps/api/src/tasks/task-policy.ts`                                                                                                                               | `apps/api/src/auth/auth.guard.spec.ts`, `apps/api/src/tasks/task-policy.spec.ts`                                                                          |
+
+Este mapa es evidencia de la implementación actual, no una promesa de que las brechas o las intenciones futuras ya existan.
