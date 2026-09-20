@@ -119,4 +119,4 @@ This unit rolls back by restoring the pre-consolidation contents of `docs/UI.md`
 
 ## Delivery note
 
-No commit was requested or authorized for this work. The documentation change remains uncommitted, and no source behavior changes are bundled.
+The user later explicitly authorized a local commit. Commit `ea72d3f` on branch `docs/web-ui-contract` contains the documentation consolidation. No push or pull request was requested or performed.
