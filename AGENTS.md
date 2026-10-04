@@ -122,7 +122,8 @@ Las reglas siguientes están verificadas para Tasks; no las presentes como un fr
 
 ## Impeccable y autoridades compartidas
 
-- La instalación de proyecto para OpenCode vive en el proveedor de proyecto que confirme la herramienta oficial; no inventes flags ni sobrescribas configuración ajena.
+- Este repositorio usa la instalación global de Impeccable; no reinstales, actualices ni mantengas un proveedor local bajo `.opencode/`.
+- La inicialización oficial se realiza desde el proveedor global que confirme la herramienta; no inventes flags ni sobrescribas configuración ajena.
 - La inicialización oficial se intenta mediante `/impeccable init` dentro del harness. Si el runtime no permite invocarlo y no existe equivalente documentado, registra la inicialización como parcial y conserva solo los artefactos confirmados.
 - Versiona las autoridades compartidas de configuración, dirección, superficies y críticas que genere Impeccable. Ignora únicamente configuración local efímera, cachés, screenshots, revisiones, preguntas, sesiones, previews, anotaciones y estado de edición manual conforme al bloque marcador upstream.
 - Usa `PRODUCT.md` para intención de producto, `DESIGN.md` para dirección visual y `.impeccable/` para configuración, superficies y críticas. `README.md` y este archivo son las entradas generales; no dupliques aquí el contenido especializado completo.
