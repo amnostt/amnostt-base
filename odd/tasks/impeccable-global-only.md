@@ -6,7 +6,7 @@
 - **Tracker:** `odd/tasks/impeccable-global-only.md`
 - **Espejo Engram:** `odd/impeccable-global-only/tasks`
 - **Rama:** `docs/web-ui-contract`
-- **Estado:** recuperación implementada y verificada localmente; identidad de commit pendiente del proceso padre.
+- **Estado:** completado.
 
 ## Objetivo
 
@@ -89,12 +89,12 @@ Antes de este tracker, el worktree está sucio **solo** por una actualización d
 
 ### ODD-IGO-05 — Registrar entrega y recuperación
 
-**Estado:** preparada funcionalmente — identidad de commit pendiente del proceso padre.
+**Estado:** completado.
 
-- [ ] Registrar la identidad del commit de unidad de trabajo y la evidencia de rollback.
+- [x] Registrar la identidad del commit de unidad de trabajo y la evidencia de rollback.
 - [x] Confirmar que no hubo push ni PR.
 
-**Evidencia requerida:** hash y mensaje del commit cuando el proceso padre autorice y cree la unidad de trabajo.
+**Evidencia observada:** commit de unidad de trabajo `837fffa` (`chore(impeccable): use global provider`), con 55 archivos cambiados, 142 inserciones y 19,429 eliminaciones. Todos los archivos eliminados pertenecían al comando y bundle de skill Impeccable local. El commit incluye la guía global de `AGENTS.md` y este tracker. El verificador independiente emitió PASS para contexto global, registro, contexto durable, alcance, Prettier e integridad del diff. No hubo push ni PR.
 
 ## Criterios de aceptación
 
@@ -105,7 +105,7 @@ Antes de este tracker, el worktree está sucio **solo** por una actualización d
 - [x] Los archivos de soporte no relacionados de `.opencode/` permanecen intactos.
 - [x] No hay cambios en fuentes de aplicación, API, pruebas, esquema o migraciones.
 - [x] `git diff --check` y las comprobaciones documentales aplicables tienen evidencia registrada.
-- [ ] La entrega incluye evidencia de commit y rollback, sin push ni PR (pendiente del commit del proceso padre).
+- [x] La entrega incluye evidencia de commit y rollback, sin push ni PR.
 
 ## Comprobaciones exactas
 
@@ -122,14 +122,15 @@ Antes de este tracker, el worktree está sucio **solo** por una actualización d
 ## Progreso y evidencia
 
 - **Setup del tracker:** completo; este es el único archivo creado en esta etapa.
-- **Implementación:** `ODD-IGO-01` a `ODD-IGO-04` completados; `ODD-IGO-05` está preparada funcionalmente y solo espera la identidad del commit del proceso padre.
-- **Operaciones realizadas:** se retiraron exclusivamente las rutas locales autorizadas, incluidos los directorios vacíos remanentes y sus padres vacíos, se actualizó la guía, se regeneró el registro, se formateó únicamente este tracker y se ejecutaron comprobaciones no mutantes.
-- **Operaciones no realizadas:** no se instalaron ni actualizaron proveedores, no se ejecutaron pruebas, commits, push, PRs ni delegaciones.
-- **Espejo Engram:** el registro `skill-registry` se guardó correctamente; el proceso padre conserva la sincronización final del tracker.
+- **Implementación:** `ODD-IGO-01` a `ODD-IGO-05` completados mediante el commit `837fffa` (`chore(impeccable): use global provider`).
+- **Operaciones realizadas:** se retiraron exclusivamente las rutas locales autorizadas, incluidos los directorios vacíos remanentes y sus padres vacíos, se actualizó la guía, se regeneró el registro, se formateó únicamente este tracker y se ejecutaron comprobaciones no mutantes. El commit de unidad registró 55 archivos cambiados, 142 inserciones y 19,429 eliminaciones.
+- **Operaciones no realizadas:** no se instalaron ni actualizaron proveedores, no se ejecutaron pruebas, push, PRs ni delegaciones.
+- **Espejo Engram:** el registro `skill-registry` se guardó correctamente; el espejo del tracker permanece pendiente de sincronización del proceso padre después de la lectura.
+- **Metadata posterior:** un commit posterior del proceso padre que sincronice solo metadata del tracker será independiente y no constituye una segunda unidad de trabajo.
 
 ## Siguiente paso
 
-El proceso padre puede registrar la identidad del commit de unidad de trabajo. El rollback queda limitado a las rutas locales retiradas, `AGENTS.md`, `.atl/skill-registry.md` y este tracker.
+No queda implementación requerida. Push y PR son decisiones opcionales del usuario. Un commit posterior del proceso padre para metadata del tracker no cambia la unidad de trabajo. El rollback de `837fffa` restaura solo las rutas locales retiradas, `AGENTS.md`, `.atl/skill-registry.md` y este tracker.
 
 ## Modo TDD
 
@@ -137,4 +138,4 @@ El proceso padre puede registrar la identidad del commit de unidad de trabajo. E
 
 ## Límite de rollback
 
-El rollback restaura **solo** `.opencode/commands/impeccable.md`, `.opencode/skills/impeccable/` y la guía correspondiente de `AGENTS.md` si fuera necesario. Nunca elimina ni altera la instalación global de Impeccable, `PRODUCT.md`, `DESIGN.md`, `.impeccable/`, las reglas upstream de `.gitignore` ni archivos de soporte no relacionados dentro de `.opencode/`.
+El rollback de `837fffa` restaura **solo** `.opencode/commands/impeccable.md`, `.opencode/skills/impeccable/`, la guía correspondiente de `AGENTS.md`, `.atl/skill-registry.md` y este tracker si fuera necesario. Nunca elimina ni altera la instalación global de Impeccable, `PRODUCT.md`, `DESIGN.md`, `.impeccable/`, las reglas upstream de `.gitignore` ni archivos de soporte no relacionados dentro de `.opencode/`. Un commit posterior que sincronice solo metadata del tracker es independiente y no forma parte de esta unidad de trabajo.
