@@ -124,13 +124,13 @@ Antes de este tracker, el worktree está sucio **solo** por una actualización d
 - **Setup del tracker:** completo; este es el único archivo creado en esta etapa.
 - **Implementación:** `ODD-IGO-01` a `ODD-IGO-05` completados mediante el commit `837fffa` (`chore(impeccable): use global provider`).
 - **Operaciones realizadas:** se retiraron exclusivamente las rutas locales autorizadas, incluidos los directorios vacíos remanentes y sus padres vacíos, se actualizó la guía, se regeneró el registro, se formateó únicamente este tracker y se ejecutaron comprobaciones no mutantes. El commit de unidad registró 55 archivos cambiados, 142 inserciones y 19,429 eliminaciones.
-- **Operaciones no realizadas:** no se instalaron ni actualizaron proveedores, no se ejecutaron pruebas, push, PRs ni delegaciones.
+- **Operaciones no realizadas:** no se instalaron ni actualizaron proveedores, no se ejecutaron pruebas de aplicación, push ni PRs. Hubo trabajo delegado de escritor y verificador, ya evidenciado en esta sesión.
 - **Espejo Engram:** el registro `skill-registry` se guardó correctamente; el espejo del tracker permanece pendiente de sincronización del proceso padre después de la lectura.
 - **Metadata posterior:** un commit posterior del proceso padre que sincronice solo metadata del tracker será independiente y no constituye una segunda unidad de trabajo.
 
 ## Siguiente paso
 
-No queda implementación requerida. Push y PR son decisiones opcionales del usuario. Un commit posterior del proceso padre para metadata del tracker no cambia la unidad de trabajo. El rollback de `837fffa` restaura solo las rutas locales retiradas, `AGENTS.md`, `.atl/skill-registry.md` y este tracker.
+No queda implementación requerida. Push y PR son decisiones opcionales del usuario. Un commit posterior del proceso padre para metadata del tracker no cambia la unidad de trabajo. El rollback de `837fffa` restaura solo las rutas locales de proveedor rastreadas, `AGENTS.md` y este tracker. `.atl/skill-registry.md` es estado operativo ignorado, no formó parte del commit y puede regenerarse cuando sea necesario.
 
 ## Modo TDD
 
@@ -138,4 +138,4 @@ No queda implementación requerida. Push y PR son decisiones opcionales del usua
 
 ## Límite de rollback
 
-El rollback de `837fffa` restaura **solo** `.opencode/commands/impeccable.md`, `.opencode/skills/impeccable/`, la guía correspondiente de `AGENTS.md`, `.atl/skill-registry.md` y este tracker si fuera necesario. Nunca elimina ni altera la instalación global de Impeccable, `PRODUCT.md`, `DESIGN.md`, `.impeccable/`, las reglas upstream de `.gitignore` ni archivos de soporte no relacionados dentro de `.opencode/`. Un commit posterior que sincronice solo metadata del tracker es independiente y no forma parte de esta unidad de trabajo.
+El rollback de `837fffa` restaura **solo** las rutas locales de proveedor rastreadas bajo `.opencode/commands/impeccable.md` y `.opencode/skills/impeccable/`, la guía correspondiente de `AGENTS.md` y este tracker si fuera necesario. `.atl/skill-registry.md` es estado operativo ignorado, no pertenece a `837fffa` y se puede regenerar. Nunca elimina ni altera la instalación global de Impeccable, `PRODUCT.md`, `DESIGN.md`, `.impeccable/`, las reglas upstream de `.gitignore` ni archivos de soporte no relacionados dentro de `.opencode/`. Un commit posterior que sincronice solo metadata del tracker es independiente y no forma parte de esta unidad de trabajo.
