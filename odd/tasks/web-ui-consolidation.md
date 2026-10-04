@@ -1,5 +1,7 @@
 # Web UI Consolidation
 
+> **Estado histórico:** tracker archivado; sus referencias a `docs/UI.md` describen la unidad documental ya completada y no son instrucciones vigentes.
+
 ## Objective
 
 Inventory the implemented Web UI and consolidate `docs/UI.md` into the canonical, evidence-based UI contract without changing application behavior.

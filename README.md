@@ -1,8 +1,8 @@
 # Amnostt Base
 
-A pnpm workspace with a React/Vite web app, a NestJS API, and PostgreSQL through Prisma. The implemented API includes authentication, task CRUD, liveness, and database readiness endpoints.
+Amnostt Base es un workspace pnpm para una aplicación web React/Vite, una API NestJS y PostgreSQL mediante Prisma. El estado implementado incluye autenticación, CRUD de Tasks y endpoints de salud; la administración de usuarios, roles y permisos sigue siendo una superficie futura.
 
-## Quick path
+## Inicio rápido
 
 ```bash
 corepack enable
@@ -12,41 +12,40 @@ cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
 ```
 
-Set `DATABASE_URL`, `SEED_MEMBER_PASSWORD`, `SEED_ADMIN_PASSWORD`, `JWT_ACCESS_SECRET`, and `JWT_REFRESH_SECRET` in `apps/api/.env`. Use locally generated, distinct values; do not commit that file or paste secrets into commands, logs, or documentation.
+Antes de ejecutar Prisma o iniciar la API, define `DATABASE_URL` en `apps/api/.env`. Para un entorno local completo también se necesitan `SEED_MEMBER_PASSWORD`, `SEED_ADMIN_PASSWORD`, `JWT_ACCESS_SECRET` y `JWT_REFRESH_SECRET` con valores locales, distintos y no versionados.
 
 ```bash
 pnpm db:up
 pnpm db:migrate
 pnpm db:seed
-pnpm build
-pnpm --filter @amnostt/api start:prod
+pnpm dev
 ```
 
-`start:prod` executes the built entrypoint at `apps/api/dist/src/main.js`. It must follow `pnpm build`; it does not run migrations or seeds.
+`pnpm db:down` conserva el volumen local de PostgreSQL. `docker compose down -v` es destructivo y elimina ese volumen.
 
-## Runtime checks
+## Estado implementado
 
-| Endpoint | Purpose | Database dependency |
-| --- | --- | --- |
-| `GET /api/health` | Liveness: process can serve HTTP. | No |
-| `GET /api/health/ready` | Readiness: process can query PostgreSQL. | Yes |
+- **Auth:** registro público con correo y contraseña, login, restauración mediante refresh, logout, `/auth/me` y cambio de contraseña. El registro deriva el nombre desde el correo; no recibe un campo `name`.
+- **Tasks:** listar, consultar, crear, actualizar y eliminar tareas con estados, fecha límite, búsqueda, filtros, ordenamiento, paginación y permisos de propiedad.
+- **Salud:** `GET /api/health` comprueba liveness y `GET /api/health/ready` comprueba la conexión a PostgreSQL.
 
-Both successful responses are `200` with the standard success envelope: `{"data":{"status":"ok"}}`. Readiness returns a sanitized `503` error when the database is unavailable; unexpected server errors are logged server-side while their client response stays sanitized.
+Todas las rutas de la API usan el prefijo global `/api`. La interfaz web usa `http://localhost:3000/api` por defecto.
 
-## Commands
+## Comandos habituales
 
-| Command | Purpose |
-| --- | --- |
-| `pnpm dev` | Start web and API for development. |
-| `pnpm build` | Build web and API. |
-| `pnpm lint` | Lint web and API. |
-| `pnpm test` | Run API Jest unit tests and Web Vitest unit tests. |
-| `pnpm test:e2e` | Run API E2E tests; requires PostgreSQL and `DATABASE_URL`. |
-| `pnpm db:up` / `pnpm db:down` | Start / stop local PostgreSQL without deleting its volume. |
-| `pnpm db:migrate` | Apply Prisma migrations. |
-| `pnpm db:seed` | Seed roles, permissions, and local sample users; requires the two seed passwords. |
+| Comando                             | Uso                                                                        |
+| ----------------------------------- | -------------------------------------------------------------------------- |
+| `pnpm dev`                          | Ejecuta web y API en paralelo.                                             |
+| `pnpm dev:web` / `pnpm dev:api`     | Ejecuta una sola aplicación.                                               |
+| `pnpm lint`                         | Ejecuta ESLint en web y API.                                               |
+| `pnpm test`                         | Ejecuta las suites unitarias de Jest y Vitest.                             |
+| `pnpm test:e2e`                     | Ejecuta E2E de API; requiere PostgreSQL y `DATABASE_URL`.                  |
+| `pnpm build`                        | Comprueba tipos de web y compila web y API.                                |
+| `pnpm db:migrate`                   | Aplica migraciones Prisma.                                                 |
+| `pnpm db:seed`                      | Crea roles, permisos y usuarios locales; requiere las contraseñas de seed. |
+| `pnpm --filter @amnostt/api format` | Formatea únicamente la API y sus pruebas.                                  |
 
-Run the repository verification gate with:
+Antes de entregar cambios, ejecuta:
 
 ```bash
 pnpm lint
@@ -55,16 +54,26 @@ pnpm build
 git diff --check
 ```
 
-## Local database lifecycle
-
-The reproducible local bootstrap order is **migrate → seed → start**. `pnpm db:migrate` applies versioned migrations, `pnpm db:seed` is idempotent for the documented roles and sample users, and production start serves the compiled API. E2E is deliberately separate from the unit gate because it starts Nest with a real PostgreSQL connection.
-
-`pnpm db:down` retains local data. `docker compose down -v` deletes the PostgreSQL volume and is destructive.
-
-## Repository layout
+## Estructura del workspace
 
 ```text
-apps/api   NestJS API, Prisma schema, migrations, and E2E tests
-apps/web   React/Vite application and unit tests
-docs       Product and API contracts
+apps/api   API NestJS, Prisma, migraciones y pruebas E2E
+apps/web   Aplicación React/Vite y pruebas Vitest
+docs       Material histórico y planes conservados explícitamente
 ```
+
+`packages/*` está reservado y actualmente vacío. El código generado de Prisma está bajo `apps/api/src/generated/prisma` y se mantiene ignorado.
+
+## Autoridades de documentación
+
+| Fuente         | Autoridad                                                                                |
+| -------------- | ---------------------------------------------------------------------------------------- |
+| `README.md`    | Recorrido humano, estado implementado y comandos de entrada.                             |
+| `AGENTS.md`    | Invariantes operativas para agentes y contribuidores.                                    |
+| `PRODUCT.md`   | Intención de producto, usuarios y resultados esperados.                                  |
+| `DESIGN.md`    | Dirección visual y principios de experiencia.                                            |
+| `.impeccable/` | Configuración de proyecto, superficies, críticas y artefactos compartidos de Impeccable. |
+
+El código y sus pruebas son la evidencia definitiva del comportamiento. `PRODUCT.md`, `DESIGN.md` y `.impeccable/` no convierten por sí mismos una intención o recomendación en un contrato implementado.
+
+Para las invariantes de trabajo, consulta `AGENTS.md`.

@@ -1,10 +1,12 @@
 # Plan de implementación del CRUD de referencia
 
+> **Estado histórico:** este plan conserva el orden de trabajo original y no es una guía vigente. Las referencias a los contratos de Auth y CRUD designan documentación histórica retirada; consulta `README.md` y `AGENTS.md` para el estado actual.
+
 Este plan establece el orden de trabajo para construir el CRUD de tareas desde la base de datos hasta el frontend. El objetivo es avanzar mediante unidades pequeñas y completas, evitando implementar capas aisladas o abstraer antes de conocer el patrón real.
 
 ## 1. Cerrar el contrato mínimo de autenticación
 
-Completar en `AUTH.md` únicamente las decisiones necesarias para establecer una identidad confiable:
+Completar en el contrato histórico de autenticación únicamente las decisiones necesarias para establecer una identidad confiable:
 
 - Modelos `User`, `Role`, `Permission` y `Session`.
 - Endpoints de login, refresh, logout y `/auth/me`.
@@ -45,7 +47,7 @@ La administración de usuarios, roles y permisos no forma parte de esta etapa.
 
 ## 5. Cerrar el contrato de Task
 
-Completar `CRUD.md` con:
+Completar el contrato histórico de Task con:
 
 - Endpoints y formatos de respuesta.
 - Sintaxis de query params.
@@ -81,4 +83,4 @@ Los DTO, políticas, consultas, formularios, columnas y validaciones deben perma
 
 ## Próximo paso
 
-Comenzar únicamente por el paso 1: cerrar el contrato mínimo de autenticación en `AUTH.md`. El CRUD y la administración avanzada de usuarios deben esperar hasta contar con una identidad confiable.
+El siguiente paso histórico era cerrar el contrato mínimo de autenticación. El CRUD y la administración avanzada de usuarios debían esperar hasta contar con una identidad confiable.
