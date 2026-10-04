@@ -6,7 +6,7 @@
 - **Tracker:** `odd/tasks/web-docs-impeccable.md`
 - **Espejo Engram:** `odd/web-docs-impeccable/tasks`
 - **Rama:** `docs/web-ui-contract`
-- **Estado:** entrega en dos unidades locales — unidad 1 confirmada; unidad 2 pendiente de commit del proceso padre
+- **Estado:** completado — las dos unidades locales seleccionadas fueron entregadas; la sincronización de metadatos queda pendiente del proceso padre
 
 ## Objetivo
 
@@ -52,12 +52,14 @@ Una jerarquía documental explícita reduce contradicciones y carga de mantenimi
 
 ## Estrategia de entrega
 
-El usuario eligió **dos unidades locales** porque los cambios escritos superan la heurística orientativa de tamaño de revisión y el proveedor de Impeccable es un bundle generado. No hay push ni PR autorizados.
+El usuario eligió **dos unidades locales** porque los cambios escritos superan la heurística orientativa de tamaño de revisión y el proveedor de Impeccable es un bundle generado. No hubo push ni PR; esas decisiones ordinarias permanecen a cargo del usuario.
 
 | Unidad | Alcance | Estado de entrega | Rollback |
 | --- | --- | --- | --- |
 | 1 — tooling de diseño | `.gitignore`, `.impeccable/`, proveedor `.opencode/`, `PRODUCT.md` y `DESIGN.md` | Confirmada en `62ccf74` — `chore(impeccable): add project design tooling` | Revertir `62ccf74` elimina únicamente tooling y autoridades de diseño de proyecto; no afecta consolidación documental ni instalación global retenida por el usuario. |
-| 2 — consolidación documental | `README.md`, `AGENTS.md`, cuatro eliminaciones en `docs/`, reparaciones históricas y este tracker | Pendiente de commit del proceso padre; identidad aún no registrada | Revertir únicamente el commit futuro de esta unidad restaura la documentación retirada y sus referencias, sin tocar tooling de diseño de la unidad 1 ni la instalación global. |
+| 2 — consolidación documental | `README.md`, `AGENTS.md`, cuatro eliminaciones en `docs/`, reparaciones históricas y este tracker | Entregada en `e0b962a` — `docs: consolidate project guidance` | Revertir `e0b962a` restaura la documentación retirada y sus referencias, sin tocar tooling de diseño de la unidad 1 ni la instalación global. |
+
+La actualización actual del tracker será un commit separado del proceso padre para sincronizar metadatos de entrega; no constituye una tercera unidad de trabajo.
 
 ## Tareas por unidad de trabajo
 
@@ -100,6 +102,8 @@ La clasificación se hizo leyendo los cuatro documentos objetivo y contrastando 
 
 **Evidencia de cierre:** `README.md` quedó como guía humana concisa con bootstrap, estado implementado, comandos, layout y mapa de autoridades. `AGENTS.md` quedó como guía operativa con jerarquía de fuentes, contratos API/Auth/Tasks, arquitectura web, límites Prisma, reglas de Impeccable y archivos protegidos. La lectura estructural confirmó 5 secciones principales en README y 10 secciones operativas en AGENTS; `git diff --check -- README.md AGENTS.md` terminó correctamente. No hubo cambios bajo `apps/web/src`.
 
+**Evidencia de entrega — unidad 2:** `e0b962a`, `docs: consolidate project guidance`, incluye `README.md`, `AGENTS.md` y este tracker como parte de la consolidación documental entregada.
+
 **Límite de rollback:** revertir los cambios de `README.md` y `AGENTS.md` de esta unidad sin tocar los documentos retirados ni `.impeccable/`.
 
 ### ODD-WDI-03 — Instalar, inicializar y delimitar Impeccable
@@ -134,6 +138,8 @@ El primer `npx impeccable install` sin flags aceptó el valor predeterminado glo
 - [x] Confirmar que la retirada no afecta a `PRODUCT.md`, `DESIGN.md`, `.impeccable/` ni a la fuente de la aplicación.
 
 **Evidencia de cierre:** `docs/PROJECT.md`, `docs/AUTH.md`, `docs/CRUD.md` y `docs/UI.md` ya no existen. La búsqueda `rg -n 'docs/(PROJECT|AUTH|CRUD|UI)\\.md' --glob '!odd/tasks/**' .` no encontró referencias fuera de trackers archivados. `docs/CRUD_PLAN.md` conserva su contenido histórico con una nota de estado y referencias reparadas sin destinos retirados. El tracker `odd/tasks/web-ui-consolidation.md` quedó marcado explícitamente como histórico. La comprobación de whitespace terminó correctamente y no hubo rutas bajo `apps/web/src`.
+
+**Evidencia de entrega — unidad 2:** `e0b962a`, `docs: consolidate project guidance`, contiene las cuatro eliminaciones, la reparación mínima de `docs/CRUD_PLAN.md` y el marcador histórico en `odd/tasks/web-ui-consolidation.md`.
 
 **Límite de rollback:** restaurar solamente los cuatro documentos retirados y sus referencias originales si la migración no preserva una orientación vigente; no revertir autoridades especializadas ni cambios de aplicación.
 
@@ -170,11 +176,11 @@ No hubo fallos funcionales. La advertencia repetida `npm warn Unknown user confi
 
 - [x] Leer de nuevo el tracker y todos los archivos autorizados modificados para confirmar que reflejan el estado real.
 - [x] Confirmar que cada tarea anterior tiene evidencia, criterio de aceptación y límite de rollback, o permanece pendiente explícitamente.
-- [x] Confirmar y documentar el estado de cualquier cambio de fuente, instalación, commit u operación remota fuera del alcance: no hubo cambios de aplicación; la unidad 1 se confirmó en `62ccf74`, la unidad 2 sigue sin commit registrado, no hubo push ni PR y el usuario eligió conservar explícitamente la instalación global.
+- [x] Confirmar y documentar el estado de cualquier cambio de fuente, instalación, commit u operación remota fuera del alcance: no hubo cambios de aplicación; la unidad 1 se confirmó en `62ccf74`, la unidad 2 en `e0b962a`, no hubo push ni PR y el usuario eligió conservar explícitamente la instalación global.
 - [x] Registrar el diff final, el estado de Git y la relación entre cada archivo cambiado y su unidad de trabajo.
 - [x] Preparar la evidencia completa para que el proceso padre actualice el espejo Engram `odd/web-docs-impeccable/tasks`; este tracker no realiza ese espejo.
 
-**Evidencia de cierre:** lectura final completada para `README.md`, `AGENTS.md`, `PRODUCT.md`, `DESIGN.md`, `.impeccable/config.json`, `.impeccable/design.json`, `.opencode/` y este tracker. Los cuatro documentos supersedidos están eliminados y `docs/CRUD_PLAN.md`/`odd/tasks/web-ui-consolidation.md` están marcados como históricos. `git diff --name-only -- apps/web/src` quedó vacío. El init/context posterior fue exitoso en OpenCode y la instalación global fue retenida por decisión explícita del usuario. La unidad 1 tiene el commit `62ccf74`; la unidad 2 está completa funcionalmente, pero su commit sigue pendiente del proceso padre. No hubo push ni PR.
+**Evidencia de cierre:** lectura final completada para `README.md`, `AGENTS.md`, `PRODUCT.md`, `DESIGN.md`, `.impeccable/config.json`, `.impeccable/design.json`, `.opencode/` y este tracker. Los cuatro documentos supersedidos están eliminados y `docs/CRUD_PLAN.md`/`odd/tasks/web-ui-consolidation.md` están marcados como históricos. La unidad 1 se entregó en `62ccf74` y la unidad 2 en `e0b962a`; este último registró 9 archivos modificados, 393 inserciones y 649 eliminaciones, incluidas cuatro eliminaciones documentales y la creación del tracker. Antes del commit, `git diff --check` pasó y `git diff --name-only -- apps/web/src` quedó vacío. El verificador independiente completo pasó lint, pruebas, build, detector `[]`, parseo JSON, búsqueda de referencias retiradas y comprobación de alcance protegido. No hubo push ni PR.
 
 **Límite de rollback:** retirar únicamente el cambio documental/configuración de esta feature mediante sus límites de unidad; no revertir trabajo preexistente del branch.
 
@@ -202,15 +208,15 @@ No hubo fallos funcionales. La advertencia repetida `npm warn Unknown user confi
 ## Progreso y evidencia
 
 - **Setup del tracker:** completo. Se creó únicamente `odd/tasks/web-docs-impeccable.md`.
-- **Implementación:** `ODD-WDI-01` a `ODD-WDI-06` completados con evidencia funcional. Entrega: unidad 1 confirmada en `62ccf74`; unidad 2 pendiente de commit del proceso padre.
+- **Implementación y entrega:** `ODD-WDI-01` a `ODD-WDI-06` completados con evidencia funcional. Las dos unidades locales se entregaron en `62ccf74` y `e0b962a`.
 - **Cambios de aplicación:** ninguno autorizado ni realizado.
 - **Instalación de Impeccable:** proveedor OpenCode instalado a nivel de proyecto en `.opencode/`; la instalación global de la primera ejecución se conserva por decisión explícita del usuario.
-- **Commits, push y PR:** unidad 1 confirmada en `62ccf74`; unidad 2 sin commit registrado; no hubo push ni PR.
-- **Espejo Engram:** pendiente del proceso padre después de leer este tracker completo.
+- **Commits, push y PR:** unidad 1 `62ccf74`; unidad 2 `e0b962a`; no hubo push ni PR.
+- **Espejo Engram:** la sincronización final queda pendiente del proceso padre después de leer este tracker completo.
 
 ## Siguiente paso
 
-El proceso padre debe crear el segundo commit local para la consolidación documental, registrar su identidad y sincronizar el espejo Engram. No hay inicialización de Impeccable ni limpieza global pendientes para esta feature.
+No queda trabajo de implementación requerido. El proceso padre debe sincronizar el espejo Engram final tras esta lectura y puede crear un commit separado de sincronización de metadatos para este tracker; no es una tercera unidad. Push o PR son decisiones opcionales y propiedad del usuario.
 
 ## Modo TDD
 
@@ -218,4 +224,4 @@ El proceso padre debe crear el segundo commit local para la consolidación docum
 
 ## Límite de rollback global
 
-La recuperación se revierte por unidad de trabajo: la unidad 1 mediante `62ccf74`, que elimina únicamente `.gitignore`, `.impeccable/`, `.opencode/`, `PRODUCT.md` y `DESIGN.md`; y la unidad 2 mediante su futuro commit, que restaura la consolidación documental, las cuatro eliminaciones, las reparaciones históricas y este tracker. No se revierten archivos preexistentes ni se modifica `apps/web/src`. La instalación global de Impeccable está fuera del rollback porque el usuario eligió conservarla explícitamente.
+La recuperación se revierte por unidad de trabajo: la unidad 1 mediante `62ccf74`, que elimina únicamente `.gitignore`, `.impeccable/`, `.opencode/`, `PRODUCT.md` y `DESIGN.md`; y la unidad 2 mediante `e0b962a`, que restaura la consolidación documental, las cuatro eliminaciones, las reparaciones históricas y el tracker. La posterior sincronización de metadatos del tracker se revierte de forma independiente y no crea una tercera unidad. No se revierten archivos preexistentes ni se modifica `apps/web/src`. La instalación global de Impeccable está fuera del rollback porque el usuario eligió conservarla explícitamente.
