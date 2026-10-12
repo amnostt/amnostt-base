@@ -1,0 +1,27 @@
+/* You can add global styles to this file, and also import other style files */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: #202124;
+  font-family: Arial, sans-serif;
+}
+
+header,
+main {
+  margin-inline: auto;
+  max-width: 64rem;
+  padding: 1.5rem;
+}
+
+header {
+  border-bottom: 1px solid #dedede;
+}
+
+header a {
+  color: inherit;
+  font-weight: 700;
+  text-decoration: none;
+}

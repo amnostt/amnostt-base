@@ -2,7 +2,11 @@ packages:
   - apps/*
   - packages/*
 allowBuilds:
+  '@parcel/watcher': false
   '@prisma/engines': true
   argon2: true
+  esbuild: true
+  lmdb: false
+  msgpackr-extract: false
   prisma: true
   unrs-resolver: true

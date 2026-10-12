@@ -1,0 +1,38 @@
+{
+  "name": "@amnostt/web-angular",
+  "version": "0.0.0",
+  "scripts": {
+    "ng": "ng",
+    "dev": "ng serve --port 5174",
+    "start": "ng serve --port 5174",
+    "build": "ng build",
+    "watch": "ng build --watch --configuration development",
+    "test": "ng test --watch=false",
+    "lint": "ng lint"
+  },
+  "private": true,
+  "packageManager": "pnpm@11.1.2",
+  "dependencies": {
+    "@angular/common": "22.2.2",
+    "@angular/compiler": "22.2.2",
+    "@angular/core": "22.2.2",
+    "@angular/platform-browser": "22.2.2",
+    "@angular/router": "22.2.2",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0"
+  },
+  "devDependencies": {
+    "@angular-eslint/builder": "^22.6.0",
+    "@angular/build": "22.2.2",
+    "@angular/cli": "22.2.2",
+    "@angular/compiler-cli": "22.2.2",
+    "@eslint/js": "^9.39.5",
+    "angular-eslint": "^22.6.0",
+    "eslint": "^9.39.5",
+    "jsdom": "^30.0.0",
+    "prettier": "^3.8.1",
+    "typescript-eslint": "^8.65.0",
+    "typescript": "~6.0.2",
+    "vitest": "^5.0.0"
+  }
+}
