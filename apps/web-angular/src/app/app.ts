@@ -1,16 +1,13 @@
-import { Component } from '@angular/core';
-import { RouterLink, RouterOutlet } from '@angular/router';
+import { Component, signal } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
+import { ZardButtonComponent } from '@/shared/components/button/button.component';
 
 @Component({
-  imports: [RouterLink, RouterOutlet],
+  imports: [RouterOutlet, ZardButtonComponent],
   selector: 'app-root',
-  template: `
-    <header>
-      <a routerLink="/" aria-label="Amnostt home">Amnostt</a>
-    </header>
-    <main>
-      <router-outlet />
-    </main>
-  `,
+  styleUrl: './app.css',
+  templateUrl: './app.html',
 })
-export class App {}
+export class App {
+  protected readonly title = signal('web-angular');
+}

@@ -4,13 +4,14 @@ Este documento describe el workspace y el comportamiento respaldado por código 
 
 ## Workspace
 
-| Área | Responsabilidad |
-| --- | --- |
-| `apps/api` (`@amnostt/api`) | API NestJS, autenticación, autorización, Tasks, health checks y acceso a PostgreSQL mediante Prisma. |
-| `apps/web` (`@amnostt/web`) | Interfaz React/Vite, sesión de usuario, rutas protegidas y experiencia de Tasks. |
-| `packages/*` | Reservado; actualmente vacío. |
+| Área                                        | Responsabilidad                                                                                                                     |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/api` (`@amnostt/api`)                 | API NestJS, autenticación, autorización, Tasks, health checks y acceso a PostgreSQL mediante Prisma.                                |
+| `apps/web` (`@amnostt/web`)                 | Interfaz React/Vite, sesión de usuario, rutas protegidas y experiencia de Tasks.                                                    |
+| `apps/web-angular` (`@amnostt/web-angular`) | SPA Angular experimental e independiente; shell UI con routing y componentes Zard. No implementa Auth, sesiones, permisos ni Tasks. |
+| `packages/*`                                | Reservado; actualmente vacío.                                                                                                       |
 
-La API aplica el prefijo `/api`. La web usa `VITE_API_URL` o `http://localhost:3000/api`. El esquema y migraciones Prisma viven en `apps/api/prisma`; el cliente generado vive en `apps/api/src/generated/prisma` y no se edita manualmente.
+La API aplica el prefijo `/api`. La web usa `VITE_API_URL` o `http://localhost:3000/api`. Angular se inicia independientemente en `http://localhost:5174`; no forma parte de los flujos de identidad o Tasks descritos aquí. El esquema y migraciones Prisma viven en `apps/api/prisma`; el cliente generado vive en `apps/api/src/generated/prisma` y no se edita manualmente.
 
 ## Límites de la API
 
@@ -79,3 +80,7 @@ Rutas autenticadas: `GET /api/tasks`, `GET /api/tasks/:id`, `POST /api/tasks`, `
 - No cambies copy visible ni presentes intención de `PRODUCT.md`, dirección `DESIGN.md` o artefactos `.impeccable/` como comportamiento vigente.
 
 Para bootstrap y comandos del workspace consulta [`README.md`](../README.md); para reglas de contribución consulta [`AGENTS.md`](../AGENTS.md).
+
+## App Angular experimental
+
+La entrada de la SPA vive en `apps/web-angular/src/main.ts`; `app.config.ts` configura sus proveedores y `app.routes.ts` sus rutas. La shell standalone se encuentra en `src/app/app.ts` y su plantilla en `src/app/app.html`. Los componentes Zard y sus utilidades compartidas están bajo `src/app/shared/`; `components.json` registra la configuración de generación. Las pruebas unitarias se ejecutan con `pnpm test:web-angular` y la compilación con `pnpm build:web-angular`. La configuración habitual de `pnpm lint`, `pnpm test` y `pnpm build` cubre React y API, no esta app experimental.

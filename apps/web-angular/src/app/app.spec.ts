@@ -1,13 +1,10 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, Router } from '@angular/router';
 import { App } from './app';
-import { routes } from './app.routes';
 
 describe('App', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideRouter(routes)],
     }).compileComponents();
   });
 
@@ -17,16 +14,24 @@ describe('App', () => {
     expect(app).toBeTruthy();
   });
 
-  it('renders the routed starter page inside the application shell', async () => {
+  it('should render title', async () => {
     const fixture = TestBed.createComponent(App);
-    await TestBed.inject(Router).navigateByUrl('/');
-    fixture.detectChanges();
     await fixture.whenStable();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('header a')?.textContent).toContain('Amnostt');
-    expect(compiled.querySelector('main h1')?.textContent).toBe('Angular starter');
-    expect(compiled.querySelector('main p')?.textContent).toContain(
-      'This independent app is a blank foundation',
-    );
+    expect(compiled.querySelector('h1')?.textContent).toContain('Hello, web-angular');
+  });
+
+  it('renders the Zard default button as one native button', async () => {
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+
+    const buttons = fixture.nativeElement.querySelectorAll('button');
+    expect(buttons).toHaveLength(1);
+
+    const button = buttons[0] as HTMLButtonElement;
+    expect(button.type).toBe('button');
+    expect(button.textContent?.trim()).toBe('Test Zard UI');
+    expect(button.getAttribute('data-slot')).toBe('button');
+    expect(button.getAttribute('data-variant')).toBe('default');
   });
 });

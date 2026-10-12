@@ -23,7 +23,7 @@ pnpm dev
 
 `pnpm dev` inicia la aplicación web y la API. Usa `pnpm dev:web` o `pnpm dev:api` para iniciar una sola aplicación. `pnpm db:down` conserva el volumen de PostgreSQL; `docker compose down -v` lo elimina.
 
-La SPA experimental independiente de Angular se inicia por separado con `pnpm dev:web-angular` y está disponible en `http://localhost:5174`. Es solo una base en blanco: no implementa autenticación, sesiones, permisos ni tareas; la aplicación React y la API no cambian.
+La SPA experimental independiente de Angular se inicia por separado con `pnpm dev:web-angular` y está disponible en `http://localhost:5174`. Es una base de UI que demuestra un botón Zard; no implementa autenticación, sesiones, permisos ni tareas. Consulta la [guía de Angular](apps/web-angular/README.md); la aplicación React y la API no cambian.
 
 ## Capacidades implementadas
 
@@ -35,13 +35,15 @@ El backend es la autoridad de identidad, sesiones, permisos y propiedad. La admi
 
 ## Comandos habituales
 
-| Comando | Uso |
-| --- | --- |
-| `pnpm lint` | Ejecuta lint en web y API. |
-| `pnpm test` | Ejecuta las pruebas unitarias Jest de API y Vitest de web. |
-| `pnpm test:e2e` | Ejecuta E2E de API; requiere PostgreSQL y `DATABASE_URL`. |
-| `pnpm build` | Comprueba tipos y compila web; compila la API. |
-| `pnpm db:migrate` / `pnpm db:seed` | Aplica migraciones / crea datos seed locales. |
+| Comando                            | Uso                                                        |
+| ---------------------------------- | ---------------------------------------------------------- |
+| `pnpm lint`                        | Ejecuta lint en web y API.                                 |
+| `pnpm test`                        | Ejecuta las pruebas unitarias Jest de API y Vitest de web. |
+| `pnpm test:e2e`                    | Ejecuta E2E de API; requiere PostgreSQL y `DATABASE_URL`.  |
+| `pnpm build`                       | Comprueba tipos y compila web; compila la API.             |
+| `pnpm db:migrate` / `pnpm db:seed` | Aplica migraciones / crea datos seed locales.              |
+
+Las comprobaciones habituales anteriores cubren la web React y la API, no la app Angular experimental. Para esta última usa `pnpm test:web-angular` y `pnpm build:web-angular`.
 
 Antes de entregar cambios, ejecuta `pnpm lint`, `pnpm test`, `pnpm build` y `git diff --check`.
 

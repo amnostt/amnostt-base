@@ -45,3 +45,7 @@ Esta es una referencia visual provisional, no una especificación de arquitectur
 - Tratar recomendaciones y críticas de Impeccable como guía, no como prueba de capacidades implementadas.
 
 Los valores estructurados del encabezado describen el baseline visual de esta base. No implican que cada token o componente se use en todas las pantallas. Para contexto de producto, consulta [`PRODUCT.md`](PRODUCT.md); para arquitectura y comportamiento, consulta [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+
+## Angular experimental
+
+La SPA Angular experimental usa Zard UI con el tema Slate y Tailwind CSS, según `apps/web-angular/components.json` y la configuración de estilos de esa app. Esta elección aplica solo a Angular: no reemplaza ni modifica el baseline neutral de React descrito arriba. La configuración y los componentes compartidos pertenecen a `apps/web-angular`; no se deduce de ello una dirección visual de producto ni un cambio de marca para la base.
