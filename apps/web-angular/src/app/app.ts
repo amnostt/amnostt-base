@@ -1,6 +1,6 @@
 import { Component, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
-import { ZardButtonComponent } from '@/shared/components/button/button.component';
+import { ZardButtonComponent } from '@/shared/zard/components/button/button.component';
 
 @Component({
   imports: [RouterOutlet, ZardButtonComponent],

@@ -12,10 +12,10 @@
   },
   "baseUrl": "src/app",
   "aliases": {
-    "components": "@/shared/components",
-    "utils": "@/shared/utils",
-    "core": "@/shared/core",
-    "services": "@/shared/services",
-    "blocks": "@/shared/blocks"
+    "components": "@/shared/zard/components",
+    "utils": "@/shared/zard/utils",
+    "core": "@/shared/zard/core",
+    "services": "@/shared/zard/services",
+    "blocks": "@/shared/zard/blocks"
   }
 }

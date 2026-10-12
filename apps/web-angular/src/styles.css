@@ -1,6 +1,6 @@
 @layer ng-icon, theme, base, components, utilities;
 @import 'tailwindcss';
-@import './app/shared/core/css/zard';
+@import './app/shared/zard/core/css/zard';
 @plugin "tailwindcss-animate";
 
 @custom-variant dark (&:is(.dark *));
