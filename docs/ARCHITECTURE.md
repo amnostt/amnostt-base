@@ -1,0 +1,81 @@
+# Arquitectura y flujos implementados
+
+Este documento describe el workspace y el comportamiento respaldado por código y pruebas. Es una referencia del estado actual, no una promesa de que las futuras áreas de producto o abstracciones ya existan.
+
+## Workspace
+
+| Área | Responsabilidad |
+| --- | --- |
+| `apps/api` (`@amnostt/api`) | API NestJS, autenticación, autorización, Tasks, health checks y acceso a PostgreSQL mediante Prisma. |
+| `apps/web` (`@amnostt/web`) | Interfaz React/Vite, sesión de usuario, rutas protegidas y experiencia de Tasks. |
+| `packages/*` | Reservado; actualmente vacío. |
+
+La API aplica el prefijo `/api`. La web usa `VITE_API_URL` o `http://localhost:3000/api`. El esquema y migraciones Prisma viven en `apps/api/prisma`; el cliente generado vive en `apps/api/src/generated/prisma` y no se edita manualmente.
+
+## Límites de la API
+
+`AppModule` reúne módulos de aplicación. `configureApp` establece el prefijo, validación global, normalización de errores y respuestas, e integración CORS con credenciales y origen configurable mediante `CORS_ORIGIN`.
+
+- La validación transforma entradas, permite solo propiedades declaradas y rechaza campos desconocidos.
+- Las respuestas definidas se envuelven como `{ data: ... }`, salvo que ya contengan `data`. Un resultado `undefined`, incluido `204 No Content`, no se envuelve.
+- Los errores usan `{ error: { code, message, details? } }`; los errores `5xx` se registran en el servidor. Entre los códigos estables están `VALIDATION_FAILED`, `BAD_REQUEST`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `HTTP_ERROR` e `INTERNAL_ERROR`.
+- `GET /api/health` comprueba disponibilidad del proceso sin base de datos; `GET /api/health/ready` consulta PostgreSQL y devuelve `503` sanitizado si no está disponible.
+
+## Auth y sesión
+
+El backend es la autoridad para identidad, estado de cuenta, sesiones, roles y permisos. La UI usa esos datos para presentar navegación y estados; no toma decisiones de autorización definitivas.
+
+### Flujo web
+
+1. `main.tsx` crea el cliente HTTP, `HttpAuthRepository` y `SessionStore`, y entrega el store mediante `SessionProvider`.
+2. El provider comparte el store con los componentes; `useSession` expone snapshot y acciones mediante selectores.
+3. `SessionStore` coordina bootstrap, registro, login, cambio de contraseña, logout y solicitudes autenticadas. El access token vive en memoria; solicitudes no autorizadas comparten el refresh en curso.
+4. `HttpAuthRepository` traduce operaciones del dominio a endpoints HTTP. El backend establece o rota la cookie de refresh; la web no persiste el access token en almacenamiento del navegador.
+5. `AuthenticatedShell` presenta rutas autenticadas y puede ocultar navegación según permisos, sin reemplazar la comprobación del servidor.
+
+### Contrato y seguridad
+
+- `POST /api/auth/register`: correo y contraseña; el correo se normaliza y el nombre deriva del correo. No se acepta un campo `name`. La contraseña debe tener 12–128 caracteres.
+- `POST /api/auth/login`: correo y contraseña; devuelve access token y `currentUser` para cuenta activa.
+- `POST /api/auth/refresh`: usa exclusivamente la cookie de refresh y devuelve un access token nuevo. `GET /api/auth/me` obtiene el principal actual.
+- `POST /api/auth/logout`: revoca la sesión cuando puede identificarla, elimina la cookie y responde `204`; es idempotente si la cookie falta o no es válida.
+- `POST /api/auth/password`: cambia contraseña usando la contraseña actual; la nueva exige 12–128 caracteres.
+- La cookie refresh es `HttpOnly`, `SameSite=Strict`, `Secure` según configuración y limitada a `/api/auth`. La base de datos almacena hashes, no refresh tokens en claro.
+- Access y refresh usan secretos distintos de al menos 32 bytes y claims que identifican usuario, sesión y tipo de token. Cada refresh válido rota el token y su hash; reutilizar un token rotado revoca la sesión.
+- Guards y servicios comprueban cuenta activa, sesión vigente/no revocada y permisos actuales. Errores de credenciales, cuenta o token no revelan cuál condición falló.
+
+### Autorización
+
+Los permisos siguen el formato `<recurso>:<acción>:<own|any>`. `any` abarca cualquier propietario; `own` requiere que el `ownerId` corresponda al usuario actual. El backend comprueba el permiso y la propiedad en cada operación protegida.
+
+## Tasks
+
+Tasks es el recurso CRUD de referencia, no una abstracción universal para todos los recursos.
+
+### Flujo web y separación existente
+
+La ruta protegida monta `TaskListPage` dentro de `AuthenticatedShell`. `TaskListPage` coordina actualmente listado, consulta URL, navegación, lectura para edición, creación/actualización, eliminación, confirmación y estados de carga/error. El listado accede mediante `TaskRepository`; crear, actualizar y eliminar son funciones de acceso del mismo módulo. No se debe describir este diseño como si Tasks tuviera la coordinación desacoplada que sí tiene Auth.
+
+Los filtros se serializan en la URL. El listado puede retrasar la búsqueda, cancela solicitudes anteriores y presenta estados comprobados por las pruebas. La edición/creación usa rutas y un Sheet; eliminar requiere confirmación. La shell puede ocultar Tasks si el usuario no tiene permiso de lectura, pero el API vuelve a autorizar cada petición.
+
+### API y propiedad
+
+Rutas autenticadas: `GET /api/tasks`, `GET /api/tasks/:id`, `POST /api/tasks`, `PATCH /api/tasks/:id` y `DELETE /api/tasks/:id`.
+
+- Los permisos disponibles son `tasks:create|read|update|delete:own|any`.
+- Crear sin `ownerId` asigna el usuario actual. Crear para otra persona exige `tasks:create:any`; un `ownerId` enviado no se descarta silenciosamente.
+- Listar exige lectura. Sin `tasks:read:any`, se restringe al propietario actual; filtrar por un `ownerId` ajeno exige permiso `any`.
+- Leer, actualizar y eliminar aplican el ámbito de propiedad según permiso. `PATCH` no permite cambiar el propietario.
+- Filtros declarados: `search`, `status`, `ownerId`, `dueDate`, `page`, `limit` y `sort`. La búsqueda cubre título y descripción; parámetros desconocidos se rechazan.
+- `page` comienza en 1; `limit` predeterminado es 20 y máximo 100; el orden predeterminado es `-createdAt`. La respuesta de lista incluye `data` y `meta` con `page`, `limit`, `totalItems` y `totalPages`.
+- Estados: `pending`, `in_progress`, `completed`. Las fechas deben ser fechas válidas `YYYY-MM-DD`.
+
+## Extensión y límites
+
+- Para extender un flujo, sigue primero sus límites existentes: Auth separa modelos, repositorio de dominio e implementación HTTP, store, selectores y provider; Tasks concentra coordinación de pantalla en `TaskListPage`.
+- Las reglas de permisos y propiedad de Tasks son específicas de este recurso. Extraerlas a una abstracción compartida requiere evidencia de otro recurso y una decisión explícita.
+- Reutiliza primitivas visuales existentes y conserva carga, vacío, error, permisos, navegación, formularios y confirmación según sus pruebas. Registra componentes faltantes como brechas, no como capacidades.
+- Administración de usuarios/roles/permisos, Profile, recuperación por correo y paquetes compartidos no están implementados.
+- No cambies copy visible ni presentes intención de `PRODUCT.md`, dirección `DESIGN.md` o artefactos `.impeccable/` como comportamiento vigente.
+
+Para bootstrap y comandos del workspace consulta [`README.md`](../README.md); para reglas de contribución consulta [`AGENTS.md`](../AGENTS.md).

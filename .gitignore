@@ -35,3 +35,6 @@ apps/api/src/generated/
 .impeccable/live/deferred-svelte-component-accepts.json
 .impeccable/live/*.png
 # impeccable-ignore-end
+# Local AI runtime state
+.atl/
+odd/
