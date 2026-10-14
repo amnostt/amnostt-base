@@ -45,6 +45,9 @@ module.exports = defineConfig([
       // Preserve selectors supplied by Zard.
       '@angular-eslint/component-selector': 'off',
       '@angular-eslint/directive-selector': 'off',
+      '@angular-eslint/no-input-rename': 'off',
+      '@typescript-eslint/array-type': 'off',
+      '@typescript-eslint/consistent-indexed-object-style': 'off',
     },
   },
   {

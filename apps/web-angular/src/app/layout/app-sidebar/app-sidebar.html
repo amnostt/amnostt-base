@@ -1,0 +1,260 @@
+<z-sidebar zCollapsible="icon">
+  <div z-sidebar-header>
+    <ul z-sidebar-menu>
+      <li z-sidebar-menu-item>
+        <button
+          type="button"
+          z-sidebar-menu-button
+          zSize="lg"
+          z-dropdown
+          [zDropdownMenu]="teamMenu"
+          aria-label="Seleccionar equipo de demostración"
+          class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+        >
+          <div
+            class="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg"
+          >
+            <ng-icon [name]="selectedTeam().logo" class="size-4" />
+          </div>
+          <div class="grid flex-1 text-left text-sm leading-tight">
+            <span class="truncate font-medium">{{ selectedTeam().name }}</span>
+            <span class="truncate text-xs">{{ selectedTeam().plan }}</span>
+          </div>
+          <ng-icon name="lucideChevronsUpDown" class="ml-auto" />
+        </button>
+        <z-dropdown-menu-content
+          #teamMenu="zDropdownMenuContent"
+          class="w-(--z-dropdown-menu-trigger-width) min-w-56 rounded-lg"
+          [zSide]="menuSide()"
+          zAlign="start"
+        >
+          <z-dropdown-menu-label class="text-muted-foreground text-xs"
+            >Equipos de demostración</z-dropdown-menu-label
+          >
+          @for (team of teams; track team.name; let index = $index) {
+            <z-dropdown-menu-item class="gap-2 p-2" (click)="selectedTeam.set(team)">
+              <div class="flex size-6 items-center justify-center rounded-md border">
+                <ng-icon [name]="team.logo" class="size-3.5 shrink-0" />
+              </div>
+              {{ team.name }}
+              <z-dropdown-menu-shortcut
+                aria-hidden="true"
+                title="Indicador de demostración; sin atajo activo"
+                >⌘{{ index + 1 }}</z-dropdown-menu-shortcut
+              >
+            </z-dropdown-menu-item>
+          }
+          <z-dropdown-menu-separator />
+          <z-dropdown-menu-item
+            zDisabled
+            class="gap-2 p-2"
+            title="No disponible en esta demostración"
+          >
+            <div class="flex size-6 items-center justify-center rounded-md border bg-transparent">
+              <ng-icon name="lucidePlus" class="size-4" />
+            </div>
+            <div class="text-muted-foreground font-medium">Añadir equipo</div>
+          </z-dropdown-menu-item>
+        </z-dropdown-menu-content>
+      </li>
+    </ul>
+  </div>
+
+  <z-sidebar-content>
+    <div z-sidebar-group>
+      <div z-sidebar-group-label>Plataforma</div>
+      <ul z-sidebar-menu aria-label="Navegación principal">
+        <li z-sidebar-menu-item>
+          <a
+            z-sidebar-menu-button
+            routerLink="/"
+            routerLinkActive
+            #homeLink="routerLinkActive"
+            [routerLinkActiveOptions]="{ exact: true }"
+            ariaCurrentWhenActive="page"
+            [zActive]="homeLink.isActive"
+            zTooltip="Inicio"
+            (click)="sidebar.setOpenMobile(false)"
+          >
+            <ng-icon name="lucideSquareTerminal" />
+            <span>Inicio</span>
+          </a>
+        </li>
+        @for (item of navigation; track item.title) {
+          <li z-sidebar-menu-item z-collapsible class="group/collapsible" [zOpen]="item.open">
+            <button
+              type="button"
+              z-collapsible-trigger
+              z-sidebar-menu-button
+              [zTooltip]="item.title"
+              [attr.aria-label]="item.title"
+            >
+              <ng-icon [name]="item.icon" />
+              <span>{{ item.title }}</span>
+              <ng-icon
+                name="lucideChevronRight"
+                class="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90"
+              />
+            </button>
+            <z-collapsible-content>
+              <ul z-sidebar-menu-sub>
+                @for (label of item.items; track label) {
+                  <li z-sidebar-menu-sub-item>
+                    <a
+                      z-sidebar-menu-sub-button
+                      role="link"
+                      aria-disabled="true"
+                      tabindex="-1"
+                      class="opacity-50"
+                      title="No disponible en esta demostración"
+                    >
+                      <span>{{ label }}</span>
+                    </a>
+                  </li>
+                }
+              </ul>
+            </z-collapsible-content>
+          </li>
+        }
+      </ul>
+    </div>
+
+    <div z-sidebar-group class="group-data-[collapsible=icon]:hidden">
+      <div z-sidebar-group-label>Proyectos</div>
+      <ul z-sidebar-menu>
+        @for (project of projects; track project.name) {
+          <li z-sidebar-menu-item>
+            <a
+              z-sidebar-menu-button
+              role="link"
+              aria-disabled="true"
+              tabindex="-1"
+              class="opacity-50"
+              title="Proyecto ficticio; navegación no disponible"
+            >
+              <ng-icon [name]="project.icon" />
+              <span>{{ project.name }}</span>
+            </a>
+            <button
+              type="button"
+              z-sidebar-menu-action
+              zShowOnHover
+              z-dropdown
+              [zDropdownMenu]="projectMenu"
+              [attr.aria-label]="'Más opciones de ' + project.name"
+            >
+              <ng-icon name="lucideMoreHorizontal" />
+              <span class="sr-only">Más opciones</span>
+            </button>
+            <z-dropdown-menu-content
+              #projectMenu="zDropdownMenuContent"
+              class="w-48 rounded-lg"
+              [zSide]="menuSide()"
+              [zAlign]="menuAlign()"
+            >
+              <z-dropdown-menu-label>Acciones no disponibles</z-dropdown-menu-label>
+              <z-dropdown-menu-item zDisabled>
+                <ng-icon name="lucideFolder" class="text-muted-foreground" />
+                <span>Ver proyecto</span>
+              </z-dropdown-menu-item>
+              <z-dropdown-menu-item zDisabled>
+                <ng-icon name="lucideForward" class="text-muted-foreground" />
+                <span>Compartir proyecto</span>
+              </z-dropdown-menu-item>
+              <z-dropdown-menu-separator />
+              <z-dropdown-menu-item zDisabled>
+                <ng-icon name="lucideTrash2" class="text-muted-foreground" />
+                <span>Eliminar proyecto</span>
+              </z-dropdown-menu-item>
+            </z-dropdown-menu-content>
+          </li>
+        }
+        <li z-sidebar-menu-item>
+          <button
+            type="button"
+            z-sidebar-menu-button
+            disabled
+            class="text-sidebar-foreground/70"
+            title="No disponible en esta demostración"
+          >
+            <ng-icon name="lucideMoreHorizontal" class="text-sidebar-foreground/70" />
+            <span>Más proyectos</span>
+          </button>
+        </li>
+      </ul>
+    </div>
+  </z-sidebar-content>
+
+  <div z-sidebar-footer>
+    <p class="text-muted-foreground px-2 text-xs group-data-[collapsible=icon]:hidden">
+      Demostración · Datos ficticios
+    </p>
+    <ul z-sidebar-menu>
+      <li z-sidebar-menu-item>
+        <button
+          type="button"
+          z-sidebar-menu-button
+          zSize="lg"
+          z-dropdown
+          [zDropdownMenu]="userMenu"
+          aria-label="Abrir menú de usuario"
+          class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+        >
+          <z-avatar class="size-8 rounded-lg" [zAlt]="user.name" [zFallback]="user.initials" />
+          <div class="grid flex-1 text-left text-sm leading-tight">
+            <span class="truncate font-medium">{{ user.name }}</span>
+            <span class="truncate text-xs">{{ user.email }}</span>
+          </div>
+          <ng-icon name="lucideChevronsUpDown" class="ml-auto size-4" />
+        </button>
+        <z-dropdown-menu-content
+          #userMenu="zDropdownMenuContent"
+          class="w-(--z-dropdown-menu-trigger-width) min-w-56 rounded-lg"
+          [zSide]="menuSide()"
+          zAlign="end"
+        >
+          <z-dropdown-menu-label class="p-0 font-normal">
+            <div class="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
+              <z-avatar class="size-8 rounded-lg" [zAlt]="user.name" [zFallback]="user.initials" />
+              <div class="grid flex-1 text-left text-sm leading-tight">
+                <span class="truncate font-medium">{{ user.name }}</span>
+                <span class="truncate text-xs">{{ user.email }}</span>
+                <span class="text-muted-foreground text-xs"
+                  >Datos ficticios · Acciones no disponibles</span
+                >
+              </div>
+            </div>
+          </z-dropdown-menu-label>
+          <z-dropdown-menu-separator />
+          <z-dropdown-menu-group>
+            <z-dropdown-menu-item zDisabled
+              ><ng-icon name="lucideSparkles" />Mejorar plan</z-dropdown-menu-item
+            >
+          </z-dropdown-menu-group>
+          <z-dropdown-menu-separator />
+          <z-dropdown-menu-group>
+            <z-dropdown-menu-item zDisabled
+              ><ng-icon name="lucideBadgeCheck" />Cuenta</z-dropdown-menu-item
+            >
+            <z-dropdown-menu-item zDisabled
+              ><ng-icon name="lucideCreditCard" />Facturación</z-dropdown-menu-item
+            >
+            <z-dropdown-menu-item zDisabled
+              ><ng-icon name="lucideBell" />Notificaciones</z-dropdown-menu-item
+            >
+          </z-dropdown-menu-group>
+          <z-dropdown-menu-separator />
+          <z-dropdown-menu-item zDisabled
+            ><ng-icon name="lucideLogOut" />Cerrar sesión</z-dropdown-menu-item
+          >
+        </z-dropdown-menu-content>
+      </li>
+    </ul>
+  </div>
+  <button
+    type="button"
+    z-sidebar-rail
+    aria-label="Alternar barra lateral"
+    title="Alternar barra lateral"
+  ></button>
+</z-sidebar>

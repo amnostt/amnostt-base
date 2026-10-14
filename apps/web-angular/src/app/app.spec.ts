@@ -1,10 +1,23 @@
+import { BreakpointObserver } from '@angular/cdk/layout';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter, Router } from '@angular/router';
+import { BehaviorSubject } from 'rxjs';
+import { provideZard } from '@/shared/zard/core/provider/providezard';
 import { App } from './app';
+import { routes } from './app.routes';
 
 describe('App', () => {
+  const viewport = new BehaviorSubject({ matches: false, breakpoints: {} });
+
   beforeEach(async () => {
+    viewport.next({ matches: false, breakpoints: {} });
     await TestBed.configureTestingModule({
       imports: [App],
+      providers: [
+        provideRouter(routes),
+        provideZard(),
+        { provide: BreakpointObserver, useValue: { observe: () => viewport.asObservable() } },
+      ],
     }).compileComponents();
   });
 
@@ -14,24 +27,147 @@ describe('App', () => {
     expect(app).toBeTruthy();
   });
 
-  it('should render title', async () => {
+  async function render(path = '/') {
     const fixture = TestBed.createComponent(App);
+    await TestBed.inject(Router).navigateByUrl(path);
     await fixture.whenStable();
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Hello, web-angular');
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('renders every sidebar section with Spanish demonstration data', async () => {
+    const fixture = await render();
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelector('h1')?.textContent).toContain('Inicio');
+    for (const text of [
+      'Estudio Norte',
+      'Plataforma',
+      'Proyectos',
+      'María García',
+      'Demostración',
+    ]) {
+      expect(element.textContent).toContain(text);
+    }
+    expect(element.querySelector('[data-slot="sidebar-rail"]')).not.toBeNull();
+    expect(element.querySelector('[data-slot="sidebar-trigger"]')?.getAttribute('aria-label')).toBe(
+      'Alternar barra lateral',
+    );
+    expect(element.querySelector('[data-slot="sidebar-trigger"]')?.textContent).toContain(
+      'Alternar barra lateral',
+    );
+    expect(element.textContent).not.toMatch(/Toggle Sidebar|Platform|Projects|Data Fetching/);
+    expect(element.querySelector('a[href="#"]')).toBeNull();
+    expect(element.querySelector('a[aria-current="page"]')?.textContent).toContain('Inicio');
   });
 
-  it('renders the Zard default button as one native button', async () => {
-    const fixture = TestBed.createComponent(App);
+  it('keeps the same shell while the child route and breadcrumb change', async () => {
+    const fixture = await render();
+    const element = fixture.nativeElement as HTMLElement;
+    const shell = element.querySelector('app-app-shell');
+    await TestBed.inject(Router).navigateByUrl('/403');
     await fixture.whenStable();
+    expect(element.querySelector('app-app-shell')).toBe(shell);
+    expect(element.querySelector('h1')?.textContent).toContain('Acceso denegado');
+    expect(element.querySelector('[aria-current="page"]')?.textContent).toContain(
+      'Acceso denegado',
+    );
+    expect(document.title).toContain('Acceso denegado');
+    await TestBed.inject(Router).navigateByUrl('/no-existe');
+    await fixture.whenStable();
+    expect(element.querySelector('app-app-shell')).toBe(shell);
+    expect(element.querySelector('h1')?.textContent).toContain('Página no encontrada');
+  });
 
-    const buttons = fixture.nativeElement.querySelectorAll('button');
-    expect(buttons).toHaveLength(1);
+  it('collapses and expands the sidebar without leaving the current page', async () => {
+    const fixture = await render();
+    const element = fixture.nativeElement as HTMLElement;
+    const trigger = element.querySelector<HTMLButtonElement>('[data-slot="sidebar-trigger"]')!;
+    trigger.click();
+    await fixture.whenStable();
+    expect(element.querySelector('[data-slot="sidebar"]')?.getAttribute('data-state')).toBe(
+      'collapsed',
+    );
+    trigger.click();
+    await fixture.whenStable();
+    expect(element.querySelector('[data-slot="sidebar"]')?.getAttribute('data-state')).toBe(
+      'expanded',
+    );
+    expect(TestBed.inject(Router).url).toBe('/');
+  });
 
-    const button = buttons[0] as HTMLButtonElement;
-    expect(button.type).toBe('button');
-    expect(button.textContent?.trim()).toBe('Test Zard UI');
-    expect(button.getAttribute('data-slot')).toBe('button');
-    expect(button.getAttribute('data-variant')).toBe('default');
+  it('keeps account actions visibly unavailable and in Spanish', async () => {
+    const fixture = await render();
+    const element = fixture.nativeElement as HTMLElement;
+    element.querySelector<HTMLButtonElement>('[aria-label="Abrir menú de usuario"]')!.click();
+    await fixture.whenStable();
+    const menu = document.body.querySelector('[role="menu"]')!;
+    expect(menu.textContent).toContain('Datos ficticios');
+    for (const label of [
+      'Mejorar plan',
+      'Cuenta',
+      'Facturación',
+      'Notificaciones',
+      'Cerrar sesión',
+    ]) {
+      const action = Array.from(menu.querySelectorAll('[role="menuitem"]')).find((item) =>
+        item.textContent?.includes(label),
+      );
+      expect(action?.getAttribute('aria-disabled')).toBe('true');
+    }
+    expect(TestBed.inject(Router).url).toBe('/');
+  });
+
+  it('changes only the local demonstration team and keeps team creation unavailable', async () => {
+    const fixture = await render();
+    const element = fixture.nativeElement as HTMLElement;
+    const trigger = element.querySelector<HTMLButtonElement>(
+      '[aria-label="Seleccionar equipo de demostración"]',
+    )!;
+    trigger.click();
+    await fixture.whenStable();
+    const menu = document.body.querySelector('[role="menu"]')!;
+    const actions = Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+    expect(
+      actions
+        .find((item) => item.textContent?.includes('Añadir equipo'))
+        ?.getAttribute('aria-disabled'),
+    ).toBe('true');
+    actions.find((item) => item.textContent?.includes('Equipo Horizonte'))!.click();
+    await fixture.whenStable();
+    expect(trigger.textContent).toContain('Equipo Horizonte');
+    expect(TestBed.inject(Router).url).toBe('/');
+  });
+
+  it('preserves project menus while disabling every unimplemented action', async () => {
+    const fixture = await render();
+    const element = fixture.nativeElement as HTMLElement;
+    element
+      .querySelector<HTMLButtonElement>('[aria-label="Más opciones de Ingeniería de diseño"]')!
+      .click();
+    await fixture.whenStable();
+    const menu = document.body.querySelector('[role="menu"]')!;
+    for (const label of ['Ver proyecto', 'Compartir proyecto', 'Eliminar proyecto']) {
+      const action = Array.from(menu.querySelectorAll('[role="menuitem"]')).find((item) =>
+        item.textContent?.includes(label),
+      );
+      expect(action?.getAttribute('aria-disabled')).toBe('true');
+    }
+    expect(TestBed.inject(Router).url).toBe('/');
+  });
+
+  it('localizes mobile sidebar accessibility labels and closes the drawer', async () => {
+    viewport.next({ matches: true, breakpoints: {} });
+    const fixture = await render();
+    const element = fixture.nativeElement as HTMLElement;
+    element.querySelector<HTMLButtonElement>('[data-slot="sidebar-trigger"]')!.click();
+    await fixture.whenStable();
+    const dialog = element.querySelector('[role="dialog"]');
+    expect(dialog?.getAttribute('aria-label')).toBe('Barra lateral');
+    expect(dialog?.getAttribute('data-state')).toBe('open');
+    const close = element.querySelector<HTMLButtonElement>('[data-slot="sidebar-backdrop"]')!;
+    expect(close.getAttribute('aria-label')).toBe('Cerrar barra lateral');
+    close.click();
+    await fixture.whenStable();
+    expect(dialog?.getAttribute('data-state')).toBe('closed');
   });
 });

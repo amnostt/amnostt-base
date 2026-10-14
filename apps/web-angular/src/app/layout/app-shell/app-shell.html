@@ -1,0 +1,33 @@
+<z-sidebar-provider zDefaultOpen="true">
+  <app-sidebar />
+  <main z-sidebar-inset>
+    <header
+      class="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12"
+    >
+      <div class="flex min-w-0 items-center gap-2 px-4">
+        <button
+          type="button"
+          z-sidebar-trigger
+          class="-ml-1"
+          aria-label="Alternar barra lateral"
+        ></button>
+        <z-separator
+          zOrientation="vertical"
+          class="mr-2 data-[orientation=vertical]:h-4 data-[orientation=vertical]:self-center"
+        />
+        <z-breadcrumb zLabel="Ruta de navegación">
+          <z-breadcrumb-item class="hidden md:block">
+            <a z-breadcrumb-link routerLink="/">Amnostt Base</a>
+          </z-breadcrumb-item>
+          <z-breadcrumb-separator class="hidden md:block" />
+          <z-breadcrumb-item>
+            <span z-breadcrumb-page>{{ title.getTitle() }}</span>
+          </z-breadcrumb-item>
+        </z-breadcrumb>
+      </div>
+    </header>
+    <div class="flex flex-1 flex-col gap-4 p-4 pt-0">
+      <router-outlet />
+    </div>
+  </main>
+</z-sidebar-provider>
