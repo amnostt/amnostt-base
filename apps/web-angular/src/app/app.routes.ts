@@ -3,8 +3,14 @@ import { AppShell } from './layout/app-shell/app-shell';
 import { Home } from './pages/home/home';
 import { Forbidden } from './pages/forbidden/forbidden';
 import { NotFound } from './pages/not-found/not-found';
+import { Login } from './features/auth/presentation/login/login';
 
 export const routes: Routes = [
+  {
+    path: 'login',
+    component: Login,
+    title: 'Iniciar sesión',
+  },
   {
     path: '',
     component: AppShell,

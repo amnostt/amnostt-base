@@ -26,13 +26,15 @@ Angular ESLint checks TypeScript and templates. Prettier owns formatting; `eslin
 
 `src/app/features/auth/` defines the user/session models, `AuthApi.login/restore`, and the readonly `SessionStore`. Restoration refreshes the cookie-backed session before requesting the current user. Store login handles submission, success, and error states, ignores duplicate submissions, and uses revisions to discard older restoration results. The access token remains private and in memory.
 
-These services are not wired to application startup or a login screen yet. Route guards and logout are also pending; the sidebar still uses demonstration data and actions. Unit tests use a mocked HTTP backend, so they do not prove real browser cookie/session behavior.
+These services are connected to the login component but not application startup. Route guards and logout are also pending; the sidebar still uses demonstration data and actions. Unit tests use a mocked HTTP backend, so they do not prove real browser cookie/session behavior.
+
+`src/app/features/auth/presentation/login/` contains the Spanish login component adapted from Zard's `login-02`, available at `/login` outside the sidebar shell. It preserves the two-column desktop layout, hides the demonstration cover on smaller screens, and provides labelled credential inputs and local validation. GitHub, registration, and password recovery remain visible but disabled demonstration actions. Submission calls `SessionStore.login()`, derives loading from its state, clears the password after authenticated success, and presents a safe Spanish error on failure. Component tests exercise these behaviors through the rendered form and a mocked HTTP backend, including duplicate-submission prevention and retry. Visual acceptance and live authentication checks remain pending; exposing this route does not protect other pages or restore a session at startup.
 
 The development server forwards `/api/**` through `src/proxy.conf.json` to the local API at `http://localhost:3000`; restart `ng serve` after changing the proxy. This proxy does not configure production deployment. Follow the local tracker `odd/tasks/angular-auth-session.md` from the repository root for the current slice; `odd/` is ignored by Git and mirrored in Engram.
 
 ## UI components and theme
 
-The app uses Tailwind CSS and Zard UI's Angular components with the Slate theme. `components.json` records the Zard CLI configuration; copied components, blocks, and utilities live under `src/app/shared/zard/`. Application-owned presentation lives under `src/app/layout/` and `src/app/pages/`.
+The app uses Tailwind CSS and Zard UI's Angular components with the Slate theme. `components.json` records the Zard CLI configuration; copied components, blocks, and utilities live under `src/app/shared/zard/`. Application-owned presentation lives under `src/app/layout/`, `src/app/pages/`, and feature-local `presentation/` directories.
 
 The shell adapts the complete visual structure of `sidebar-07`: collapsible sidebar, team switcher, grouped navigation, project menus, account menu, rail, and breadcrumbs. All application UI and accessibility labels are in Spanish. The sidebar primitive has a small local translation of its internal accessibility labels; review this customization before overwriting its source.
 

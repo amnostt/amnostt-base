@@ -1,5 +1,7 @@
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter, Router } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
 import { provideZard } from '@/shared/zard/core/provider/providezard';
@@ -15,11 +17,15 @@ describe('App', () => {
       imports: [App],
       providers: [
         provideRouter(routes),
+        provideHttpClient(),
+        provideHttpClientTesting(),
         provideZard(),
         { provide: BreakpointObserver, useValue: { observe: () => viewport.asObservable() } },
       ],
     }).compileComponents();
   });
+
+  afterEach(() => TestBed.inject(HttpTestingController).verify());
 
   it('should create the app', () => {
     const fixture = TestBed.createComponent(App);
@@ -34,6 +40,28 @@ describe('App', () => {
     fixture.detectChanges();
     return fixture;
   }
+
+  it('renders the Spanish login outside the shell and restores the shell on Home', async () => {
+    const fixture = await render('/login');
+    const element = fixture.nativeElement as HTMLElement;
+    expect(TestBed.inject(Router).url).toBe('/login');
+    expect(element.querySelector('app-login')).not.toBeNull();
+    expect(element.querySelector('h1')?.textContent).toBe('Inicia sesión en tu cuenta');
+    expect(element.querySelector('form')).not.toBeNull();
+    expect(element.querySelector('app-app-shell')).toBeNull();
+    expect(element.querySelector('[data-slot="sidebar"]')).toBeNull();
+    expect(document.title).toBe('Iniciar sesión');
+    TestBed.inject(HttpTestingController).expectNone('/api/auth/login');
+    TestBed.inject(HttpTestingController).expectNone('/api/auth/refresh');
+
+    await TestBed.inject(Router).navigateByUrl('/');
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(element.querySelector('app-login')).toBeNull();
+    expect(element.querySelector('app-app-shell')).not.toBeNull();
+    expect(element.querySelector('h1')?.textContent).toContain('Inicio');
+    expect(document.title).toBe('Inicio');
+  });
 
   it('renders every sidebar section with Spanish demonstration data', async () => {
     const fixture = await render();
