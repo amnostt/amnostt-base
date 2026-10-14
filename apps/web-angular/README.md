@@ -1,6 +1,6 @@
 # Angular experimental app
 
-`apps/web-angular` is an independent Angular SPA alongside the React application. It is an experimental UI shell, not an implementation of authentication, sessions, permissions, or tasks.
+`apps/web-angular` is an independent Angular SPA alongside the React application. It contains an experimental UI shell and an in-progress authentication/session foundation, not complete authentication, permission, or task flows.
 
 ## Run and verify
 
@@ -21,6 +21,14 @@ pnpm lint:web-angular
 The Angular CLI test target uses Vitest. For a single run without watch mode, use `pnpm --filter @amnostt/web-angular exec ng test --watch=false` from the workspace root. End-to-end testing is not configured for this app.
 
 Angular ESLint checks TypeScript and templates. Prettier owns formatting; `eslint-config-prettier` disables conflicting formatting rules. Naming and type-style exceptions apply only to the copied Zard sources, not application components. Root `pnpm lint` still checks React and the API only.
+
+## Authentication foundation
+
+`src/app/features/auth/` defines the user/session models, `AuthApi.login/restore`, and the readonly `SessionStore`. Restoration refreshes the cookie-backed session before requesting the current user. Store login handles submission, success, and error states, ignores duplicate submissions, and uses revisions to discard older restoration results. The access token remains private and in memory.
+
+These services are not wired to application startup or a login screen yet. Route guards and logout are also pending; the sidebar still uses demonstration data and actions. Unit tests use a mocked HTTP backend, so they do not prove real browser cookie/session behavior.
+
+The development server forwards `/api/**` through `src/proxy.conf.json` to the local API at `http://localhost:3000`; restart `ng serve` after changing the proxy. This proxy does not configure production deployment. Follow the local tracker `odd/tasks/angular-auth-session.md` from the repository root for the current slice; `odd/` is ignored by Git and mirrored in Engram.
 
 ## UI components and theme
 
