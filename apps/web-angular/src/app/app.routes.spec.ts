@@ -74,6 +74,77 @@ describe('Protected application routes', () => {
     TestBed.inject(HttpTestingController).expectNone(() => true);
   });
 
+  it.each([true, false])(
+    'routes a rendered login submission only after authenticated success (accepted: %s)',
+    async (accepted) => {
+      await resolveAnonymousSession();
+      const fixture = await render('/login');
+      const element = fixture.nativeElement as HTMLElement;
+      const router = TestBed.inject(Router);
+      const navigation = vi.spyOn(router, 'navigateByUrl');
+      const http = TestBed.inject(HttpTestingController);
+      for (const [id, value] of [
+        ['email', currentUser.email],
+        ['password', 'example-only-password'],
+      ]) {
+        const input = element.querySelector<HTMLInputElement>(`#${id}`)!;
+        input.value = value;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      element
+        .querySelector('form')!
+        .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      fixture.detectChanges();
+      const request = http.expectOne('/api/auth/login');
+      expect(request.request.body).toEqual({
+        email: currentUser.email,
+        password: 'example-only-password',
+      });
+      expect(router.url).toBe('/login');
+      expect(navigation).not.toHaveBeenCalled();
+      expect(element.querySelector('app-app-shell')).toBeNull();
+      expect(TestBed.inject(SessionStore).state().status).toBe('login-submitting');
+
+      if (accepted) {
+        request.flush({ data: { accessToken: 'example-access-token', currentUser } });
+        await vi.waitFor(() =>
+          expect(navigation).toHaveBeenCalledExactlyOnceWith('/', { replaceUrl: true }),
+        );
+        await navigation.mock.results[0].value;
+      } else {
+        request.flush({}, { status: 401, statusText: 'Unauthorized' });
+      }
+      await fixture.whenStable();
+      await Promise.resolve();
+      fixture.detectChanges();
+
+      if (accepted) {
+        expect(router.url).toBe('/');
+        expect(navigation).toHaveBeenCalledExactlyOnceWith('/', { replaceUrl: true });
+        expect(TestBed.inject(SessionStore).state()).toEqual({
+          status: 'authenticated',
+          user: currentUser,
+        });
+        expect(element.querySelector('app-app-shell')).not.toBeNull();
+        expect(element.querySelector('[data-slot="sidebar"]')).not.toBeNull();
+        expect(element.querySelector('h1')?.textContent).toContain('Inicio');
+        expect(element.querySelector('app-login')).toBeNull();
+      } else {
+        expect(router.url).toBe('/login');
+        expect(navigation).not.toHaveBeenCalled();
+        expect(TestBed.inject(SessionStore).state().status).toBe('unauthenticated');
+        expect(element.querySelector('app-app-shell')).toBeNull();
+        expect(element.querySelector('[role="alert"]')?.textContent).toContain(
+          'No pudimos iniciar sesión.',
+        );
+        expect(element.querySelector<HTMLInputElement>('#password')!.value).toBe(
+          'example-only-password',
+        );
+      }
+      http.expectNone(() => true);
+    },
+  );
+
   it.each(['/', '/403', '/no-existe'])(
     'redirects an anonymous visitor from %s without rendering protected content',
     async (path) => {

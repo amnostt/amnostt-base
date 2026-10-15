@@ -1,7 +1,8 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { provideRouter, Router } from '@angular/router';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SessionStore } from '../../application/session-store';
 import { Login } from './login';
 
@@ -23,8 +24,9 @@ describe('Login presentation', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [Login],
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
     }).compileComponents();
+    vi.spyOn(TestBed.inject(Router), 'navigateByUrl').mockResolvedValue(true);
     http = TestBed.inject(HttpTestingController);
     store = TestBed.inject(SessionStore);
     fixture = TestBed.createComponent(Login);
@@ -160,6 +162,7 @@ describe('Login presentation', () => {
     const button = page.querySelector<HTMLButtonElement>('button[type="submit"]')!;
     expect(button.disabled).toBe(true);
     expect(button.textContent?.trim()).toBe('Ingresando…');
+    expect(TestBed.inject(Router).navigateByUrl).not.toHaveBeenCalled();
     request.flush(session);
     await settleSubmission();
   });
@@ -192,6 +195,9 @@ describe('Login presentation', () => {
     expect(JSON.stringify(store.state())).not.toContain('test-access-token');
     expect(page.textContent).not.toContain('test-access-token');
     expect(page.textContent).not.toContain('test-password');
+    expect(TestBed.inject(Router).navigateByUrl).toHaveBeenCalledExactlyOnceWith('/', {
+      replaceUrl: true,
+    });
   });
 
   it('shows a safe Spanish error and restores submission after a rejected login', async () => {
@@ -212,6 +218,7 @@ describe('Login presentation', () => {
     expect(page.querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(false);
     expect(page.querySelector<HTMLInputElement>('#password')!.value).toBe('test-password');
     expect(page.textContent).not.toMatch(/private-server-detail|test-password|test-access-token/);
+    expect(TestBed.inject(Router).navigateByUrl).not.toHaveBeenCalled();
   });
 
   it('clears the previous server error when retrying valid credentials', async () => {

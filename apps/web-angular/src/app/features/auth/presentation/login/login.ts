@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideGalleryVerticalEnd } from '@ng-icons/lucide';
@@ -22,6 +23,7 @@ import { SessionStore } from '../../application/session-store';
 })
 export class Login {
   private readonly sessionStore = inject(SessionStore);
+  private readonly router = inject(Router);
 
   protected readonly isLoading = computed(
     () => this.sessionStore.state().status === 'login-submitting',
@@ -50,6 +52,7 @@ export class Login {
 
       if (this.sessionStore.state().status === 'authenticated') {
         this.loginForm.controls.password.reset();
+        await this.router.navigateByUrl('/', { replaceUrl: true });
       }
     } catch {
       this.errorMessage.set('No pudimos iniciar sesión. Revisa tus datos e inténtalo de nuevo.');
