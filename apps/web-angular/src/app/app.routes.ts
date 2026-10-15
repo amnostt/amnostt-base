@@ -5,6 +5,8 @@ import { Forbidden } from './pages/forbidden/forbidden';
 import { NotFound } from './pages/not-found/not-found';
 import { Login } from './features/auth/presentation/login/login';
 
+import { authGuard } from './features/auth/presentation/guards/auth.guard';
+
 export const routes: Routes = [
   {
     path: 'login',
@@ -14,6 +16,8 @@ export const routes: Routes = [
   {
     path: '',
     component: AppShell,
+    canActivate: [authGuard],
+    canActivateChild: [authGuard],
     children: [
       {
         path: '',

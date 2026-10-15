@@ -7,6 +7,7 @@ import { BehaviorSubject } from 'rxjs';
 import { provideZard } from '@/shared/zard/core/provider/providezard';
 import { App } from './app';
 import { routes } from './app.routes';
+import { SessionStore } from './features/auth/application/session-store';
 
 describe('App', () => {
   const viewport = new BehaviorSubject({ matches: false, breakpoints: {} });
@@ -23,6 +24,26 @@ describe('App', () => {
         { provide: BreakpointObserver, useValue: { observe: () => viewport.asObservable() } },
       ],
     }).compileComponents();
+
+    const login = TestBed.inject(SessionStore).login({
+      email: 'maria@example.com',
+      password: 'example-only-password',
+    });
+    TestBed.inject(HttpTestingController)
+      .expectOne('/api/auth/login')
+      .flush({
+        data: {
+          accessToken: 'example-access-token',
+          currentUser: {
+            id: 'example-user-id',
+            email: 'maria@example.com',
+            name: 'María García',
+            role: 'Member',
+            permissions: ['tasks:read:own'],
+          },
+        },
+      });
+    await login;
   });
 
   afterEach(() => TestBed.inject(HttpTestingController).verify());
