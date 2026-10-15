@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideAudioWaveform,
@@ -30,6 +30,7 @@ import { ZardCollapsibleImports } from '@/shared/zard/components/collapsible/col
 import { ZardDropdownImports } from '@/shared/zard/components/dropdown/dropdown.imports';
 import { ZardSidebarImports } from '@/shared/zard/components/sidebar/sidebar.imports';
 import { ZardSidebarService } from '@/shared/zard/components/sidebar/sidebar.service';
+import { SessionStore } from '@/features/auth/application/session-store';
 
 @Component({
   selector: 'app-sidebar',
@@ -73,11 +74,18 @@ import { ZardSidebarService } from '@/shared/zard/components/sidebar/sidebar.ser
   host: { class: 'contents' },
 })
 export class AppSidebar {
+  private readonly sessionStore = inject(SessionStore);
+  private readonly router = inject(Router);
+
+  protected readonly isLoggingOut = computed(
+    () => this.sessionStore.state().status === 'logout-pending',
+  );
+
   protected readonly sidebar = inject(ZardSidebarService);
   protected readonly menuSide = computed(() => (this.sidebar.isMobile() ? 'bottom' : 'right'));
   protected readonly menuAlign = computed(() => (this.sidebar.isMobile() ? 'end' : 'start'));
 
-  // Presentation fixtures only: no account, team, project, or session API is called.
+  // Account, team, and project presentation fixtures; logout uses the real session API.
   protected readonly user = { name: 'María García', email: 'maria@example.com', initials: 'MG' };
   protected readonly teams = [
     { name: 'Estudio Norte', logo: 'lucideGalleryVerticalEnd', plan: 'Plan empresarial' },
@@ -116,4 +124,18 @@ export class AppSidebar {
     { name: 'Ventas y marketing', icon: 'lucidePieChart' },
     { name: 'Planificación de viajes', icon: 'lucideMap' },
   ];
+
+  protected async onLogout(): Promise<void> {
+    if (this.isLoggingOut()) {
+      return;
+    }
+
+    try {
+      await this.sessionStore.logout();
+    } catch {
+      // Local session cleanup is handled by the store.
+    } finally {
+      await this.router.navigateByUrl('/login', { replaceUrl: true });
+    }
+  }
 }

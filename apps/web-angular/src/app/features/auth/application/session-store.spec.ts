@@ -224,4 +224,107 @@ describe('SessionStore', () => {
 
     expect(service.state()).toEqual({ status: 'unauthenticated' });
   });
+
+  async function authenticate() {
+    const login = service.login(loginInput);
+    http.expectOne('/api/auth/login').flush({
+      data: { accessToken: 'example-login-token', currentUser: user },
+    });
+    await login;
+  }
+
+  it('clears the displayed user during logout and blocks duplicate logout, login and restoration', async () => {
+    await authenticate();
+    const logout = service.logout();
+    const request = http.expectOne('/api/auth/logout');
+    expect(service.state()).toEqual({ status: 'logout-pending' });
+    expect(JSON.stringify(service.state())).not.toContain(user.email);
+
+    await expect(service.logout()).resolves.toBeUndefined();
+    await expect(service.login(loginInput)).resolves.toBeUndefined();
+    await expect(service.bootstrap()).resolves.toBeUndefined();
+    expect(service.state()).toEqual({ status: 'logout-pending' });
+    http.expectNone(() => true);
+
+    request.flush(null, { status: 204, statusText: 'No Content' });
+    await expect(logout).resolves.toBeUndefined();
+    expect(service.state()).toEqual({ status: 'unauthenticated' });
+
+    await authenticate();
+    expect(service.state()).toEqual({ status: 'authenticated', user });
+    http.expectNone(() => true);
+  });
+
+  it('clears local session state even when logout fails and exposes the error to the caller', async () => {
+    await authenticate();
+    const logout = service.logout();
+    const rejection = expect(logout).rejects.toMatchObject({ status: 503 });
+    expect(service.state()).toEqual({ status: 'logout-pending' });
+    http.expectOne('/api/auth/logout').flush(null, {
+      status: 503,
+      statusText: 'Service Unavailable',
+    });
+    await rejection;
+    expect(service.state()).toEqual({ status: 'unauthenticated' });
+    http.expectNone(() => true);
+  });
+
+  describe.each(['pending', 'completed'] as const)('when logout is %s', (phase) => {
+    it.each(['success', 'failure'] as const)(
+      'ignores an older login %s without restoring the session',
+      async (outcome) => {
+        const login = service.login(loginInput);
+        const request = http.expectOne('/api/auth/login');
+        const logout = service.logout();
+        const logoutRequest = http.expectOne('/api/auth/logout');
+        if (phase === 'completed') {
+          logoutRequest.flush(null, { status: 204, statusText: 'No Content' });
+          await logout;
+        }
+
+        if (outcome === 'success') {
+          request.flush({ data: { accessToken: 'older-example-token', currentUser: olderUser } });
+          await expect(login).resolves.toBeUndefined();
+        } else {
+          const rejection = expect(login).rejects.toMatchObject({ status: 401 });
+          request.flush(null, { status: 401, statusText: 'Unauthorized' });
+          await rejection;
+        }
+        expect(service.state()).toEqual({
+          status: phase === 'pending' ? 'logout-pending' : 'unauthenticated',
+        });
+        if (phase === 'pending') {
+          logoutRequest.flush(null, { status: 204, statusText: 'No Content' });
+          await logout;
+        }
+        expect(service.state()).toEqual({ status: 'unauthenticated' });
+        http.expectNone(() => true);
+      },
+    );
+
+    it.each(['success', 'failure'] as const)(
+      'ignores an older restoration %s without restoring the session',
+      async (outcome) => {
+        const restoration = service.bootstrap();
+        const logout = service.logout();
+        const logoutRequest = http.expectOne('/api/auth/logout');
+        if (phase === 'completed') {
+          logoutRequest.flush(null, { status: 204, statusText: 'No Content' });
+          await logout;
+        }
+
+        finishOlderRestore(outcome);
+        await restoration;
+        expect(service.state()).toEqual({
+          status: phase === 'pending' ? 'logout-pending' : 'unauthenticated',
+        });
+        if (phase === 'pending') {
+          logoutRequest.flush(null, { status: 204, statusText: 'No Content' });
+          await logout;
+        }
+        expect(service.state()).toEqual({ status: 'unauthenticated' });
+        http.expectNone(() => true);
+      },
+    );
+  });
 });

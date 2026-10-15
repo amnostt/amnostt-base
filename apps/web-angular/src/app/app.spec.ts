@@ -150,14 +150,8 @@ describe('App', () => {
     element.querySelector<HTMLButtonElement>('[aria-label="Abrir menú de usuario"]')!.click();
     await fixture.whenStable();
     const menu = document.body.querySelector('[role="menu"]')!;
-    expect(menu.textContent).toContain('Datos ficticios');
-    for (const label of [
-      'Mejorar plan',
-      'Cuenta',
-      'Facturación',
-      'Notificaciones',
-      'Cerrar sesión',
-    ]) {
+    expect(menu.textContent).toContain('Datos de usuario ficticios');
+    for (const label of ['Mejorar plan', 'Cuenta', 'Facturación', 'Notificaciones']) {
       const action = Array.from(menu.querySelectorAll('[role="menuitem"]')).find((item) =>
         item.textContent?.includes(label),
       );
@@ -165,6 +159,57 @@ describe('App', () => {
     }
     expect(TestBed.inject(Router).url).toBe('/');
   });
+
+  it.each([204, 503])(
+    'logs out from the rendered menu and silently replaces the route after HTTP %s',
+    async (status) => {
+      const fixture = await render();
+      const element = fixture.nativeElement as HTMLElement;
+      const router = TestBed.inject(Router);
+      const navigate = vi.spyOn(router, 'navigateByUrl');
+      const http = TestBed.inject(HttpTestingController);
+      element.querySelector<HTMLButtonElement>('[aria-label="Abrir menú de usuario"]')!.click();
+      await fixture.whenStable();
+      const menu = document.body.querySelector('[role="menu"]')!;
+      const logoutAction = Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+        (item) => item.textContent?.includes('Cerrar sesión'),
+      )!;
+      expect(logoutAction.getAttribute('aria-disabled')).toBe('false');
+      logoutAction.click();
+      const request = http.expectOne('/api/auth/logout');
+      expect(TestBed.inject(SessionStore).state()).toEqual({ status: 'logout-pending' });
+      fixture.detectChanges();
+      const pendingDisabled = logoutAction.getAttribute('aria-disabled');
+      const pendingLabel = logoutAction.textContent;
+      logoutAction.click();
+      http.expectNone('/api/auth/logout');
+      expect(router.url).toBe('/');
+
+      request.flush(null, {
+        status,
+        statusText: status === 204 ? 'No Content' : 'Service Unavailable',
+      });
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect(pendingDisabled).toBe('true');
+      expect(pendingLabel).toContain('Cerrando sesión');
+      expect(navigate).toHaveBeenCalledWith('/login', { replaceUrl: true });
+      expect(router.url).toBe('/login');
+      expect(TestBed.inject(SessionStore).state()).toEqual({ status: 'unauthenticated' });
+      expect(element.querySelector('app-login')).not.toBeNull();
+      expect(element.querySelector('app-app-shell')).toBeNull();
+      expect(document.body.querySelector('[role="menu"]')).toBeNull();
+      expect(document.body.querySelector('[role="alert"]')).toBeNull();
+      expect(element.textContent).not.toMatch(
+        /Service Unavailable|revocaci[oó]n|cerramos la sesi[oó]n local/,
+      );
+
+      await router.navigateByUrl('/403');
+      await fixture.whenStable();
+      expect(router.url).toBe('/login');
+      http.expectNone(() => true);
+    },
+  );
 
   it('changes only the local demonstration team and keeps team creation unavailable', async () => {
     const fixture = await render();

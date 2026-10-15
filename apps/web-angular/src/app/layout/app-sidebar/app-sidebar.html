@@ -219,9 +219,7 @@
               <div class="grid flex-1 text-left text-sm leading-tight">
                 <span class="truncate font-medium">{{ user.name }}</span>
                 <span class="truncate text-xs">{{ user.email }}</span>
-                <span class="text-muted-foreground text-xs"
-                  >Datos ficticios · Acciones no disponibles</span
-                >
+                <span class="text-muted-foreground text-xs"> Datos de usuario ficticios </span>
               </div>
             </div>
           </z-dropdown-menu-label>
@@ -244,9 +242,10 @@
             >
           </z-dropdown-menu-group>
           <z-dropdown-menu-separator />
-          <z-dropdown-menu-item zDisabled
-            ><ng-icon name="lucideLogOut" />Cerrar sesión</z-dropdown-menu-item
-          >
+          <z-dropdown-menu-item [zDisabled]="isLoggingOut()" (click)="onLogout()">
+            <ng-icon name="lucideLogOut" />
+            {{ isLoggingOut() ? 'Cerrando sesión...' : 'Cerrar sesión' }}
+          </z-dropdown-menu-item>
         </z-dropdown-menu-content>
       </li>
     </ul>

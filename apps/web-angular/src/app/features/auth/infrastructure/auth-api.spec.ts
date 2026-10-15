@@ -112,4 +112,27 @@ describe('AuthApi', () => {
     await expect(result).rejects.toMatchObject({ status: 401 });
     http.expectNone('/api/auth/refresh');
   });
+
+  it('posts logout with cookies and accepts an empty 204 response', async () => {
+    const logout = firstValueFrom(service.logout());
+    const request = http.expectOne('/api/auth/logout');
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toBeNull();
+    expect(request.request.withCredentials).toBe(true);
+    expect(request.request.headers.has('Authorization')).toBe(false);
+    request.flush(null, { status: 204, statusText: 'No Content' });
+    await expect(logout).resolves.toBeNull();
+    http.expectNone(() => true);
+  });
+
+  it('propagates logout failure instead of reporting remote revocation as successful', async () => {
+    const logout = firstValueFrom(service.logout());
+    const rejection = expect(logout).rejects.toMatchObject({ status: 503 });
+    http.expectOne('/api/auth/logout').flush(null, {
+      status: 503,
+      statusText: 'Service Unavailable',
+    });
+    await rejection;
+    http.expectNone(() => true);
+  });
 });

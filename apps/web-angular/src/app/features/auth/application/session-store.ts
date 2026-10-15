@@ -68,6 +68,22 @@ export class SessionStore {
     }
   }
 
+  async logout(): Promise<void> {
+    if (this.sessionState().status === 'logout-pending') {
+      return;
+    }
+
+    ++this.sessionRevision;
+    this.accessToken.set(undefined);
+    this.sessionState.set({ status: 'logout-pending' });
+
+    try {
+      await firstValueFrom(this.auth.logout());
+    } finally {
+      this.sessionState.set({ status: 'unauthenticated' });
+    }
+  }
+
   private async restoreSession(revision: number): Promise<void> {
     try {
       const session = await firstValueFrom(this.auth.restore());

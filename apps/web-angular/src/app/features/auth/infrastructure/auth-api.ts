@@ -13,6 +13,10 @@ export class AuthApi {
       .pipe(map((response) => response.data));
   }
 
+  logout(): Observable<void> {
+    return this.http.post<void>('/api/auth/logout', null, { withCredentials: true });
+  }
+
   restore(): Observable<Session> {
     return this.http
       .post<{ data: { accessToken: string } }>('/api/auth/refresh', null, { withCredentials: true })
