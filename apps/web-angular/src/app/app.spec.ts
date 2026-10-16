@@ -26,7 +26,7 @@ describe('App', () => {
     }).compileComponents();
 
     const login = TestBed.inject(SessionStore).login({
-      email: 'maria@example.com',
+      email: 'elena@example.com',
       password: 'example-only-password',
     });
     TestBed.inject(HttpTestingController)
@@ -36,8 +36,8 @@ describe('App', () => {
           accessToken: 'example-access-token',
           currentUser: {
             id: 'example-user-id',
-            email: 'maria@example.com',
-            name: 'María García',
+            email: 'elena@example.com',
+            name: 'Elena Torres',
             role: 'Member',
             permissions: ['tasks:read:own'],
           },
@@ -84,7 +84,7 @@ describe('App', () => {
     expect(document.title).toBe('Inicio');
   });
 
-  it('renders every sidebar section with Spanish demonstration data', async () => {
+  it('renders the authenticated user alongside Spanish demonstration data', async () => {
     const fixture = await render();
     const element = fixture.nativeElement as HTMLElement;
     expect(element.querySelector('h1')?.textContent).toContain('Inicio');
@@ -92,11 +92,16 @@ describe('App', () => {
       'Estudio Norte',
       'Plataforma',
       'Proyectos',
-      'María García',
+      'Elena Torres',
+      'elena@example.com',
       'Demostración',
     ]) {
       expect(element.textContent).toContain(text);
     }
+    expect(element.querySelector('[aria-label="Abrir menú de usuario"]')?.textContent).toContain(
+      'ET',
+    );
+    expect(element.textContent).not.toContain('María García');
     expect(element.querySelector('[data-slot="sidebar-rail"]')).not.toBeNull();
     expect(element.querySelector('[data-slot="sidebar-trigger"]')?.getAttribute('aria-label')).toBe(
       'Alternar barra lateral',
@@ -150,7 +155,8 @@ describe('App', () => {
     element.querySelector<HTMLButtonElement>('[aria-label="Abrir menú de usuario"]')!.click();
     await fixture.whenStable();
     const menu = document.body.querySelector('[role="menu"]')!;
-    expect(menu.textContent).toContain('Datos de usuario ficticios');
+    expect(menu.textContent).toContain('Elena Torres');
+    expect(menu.textContent).not.toContain('Datos de usuario ficticios');
     for (const label of ['Mejorar plan', 'Cuenta', 'Facturación', 'Notificaciones']) {
       const action = Array.from(menu.querySelectorAll('[role="menuitem"]')).find((item) =>
         item.textContent?.includes(label),

@@ -31,6 +31,13 @@ import { ZardDropdownImports } from '@/shared/zard/components/dropdown/dropdown.
 import { ZardSidebarImports } from '@/shared/zard/components/sidebar/sidebar.imports';
 import { ZardSidebarService } from '@/shared/zard/components/sidebar/sidebar.service';
 import { SessionStore } from '@/features/auth/application/session-store';
+import { CurrentUser } from '@/features/auth/domain/auth-models';
+
+interface SidebarUser {
+  name: string;
+  email: string;
+  initials: string;
+}
 
 @Component({
   selector: 'app-sidebar',
@@ -76,17 +83,35 @@ import { SessionStore } from '@/features/auth/application/session-store';
 export class AppSidebar {
   private readonly sessionStore = inject(SessionStore);
   private readonly router = inject(Router);
+  private readonly logoutUser = signal<SidebarUser | null>(null);
 
   protected readonly isLoggingOut = computed(
     () => this.sessionStore.state().status === 'logout-pending',
   );
 
+  protected readonly user = computed(() => {
+    const state = this.sessionStore.state();
+    if (state.status === 'logout-pending') return this.logoutUser();
+    if (state.status !== 'authenticated') return null;
+
+    const user: CurrentUser = state.user;
+    const initials =
+      user.name
+        .trim()
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((part) => part.charAt(0))
+        .join('')
+        .toUpperCase() || user.email.charAt(0).toUpperCase();
+
+    return { name: user.name, email: user.email, initials };
+  });
+
   protected readonly sidebar = inject(ZardSidebarService);
   protected readonly menuSide = computed(() => (this.sidebar.isMobile() ? 'bottom' : 'right'));
   protected readonly menuAlign = computed(() => (this.sidebar.isMobile() ? 'end' : 'start'));
 
-  // Account, team, and project presentation fixtures; logout uses the real session API.
-  protected readonly user = { name: 'María García', email: 'maria@example.com', initials: 'MG' };
+  // Team, and project presentation fixtures; logout uses the real session API.
   protected readonly teams = [
     { name: 'Estudio Norte', logo: 'lucideGalleryVerticalEnd', plan: 'Plan empresarial' },
     { name: 'Equipo Horizonte', logo: 'lucideAudioWaveform', plan: 'Plan inicial' },
@@ -130,6 +155,7 @@ export class AppSidebar {
       return;
     }
 
+    this.logoutUser.set(this.user());
     try {
       await this.sessionStore.logout();
     } catch {
