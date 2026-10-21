@@ -233,7 +233,11 @@
           >
             <z-dropdown-menu-label class="p-0 font-normal">
               <div class="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                <z-avatar class="size-8 rounded-lg" [zAlt]="user.name" [zFallback]="user.initials" />
+                <z-avatar
+                  class="size-8 rounded-lg"
+                  [zAlt]="user.name"
+                  [zFallback]="user.initials"
+                />
                 <div class="grid flex-1 text-left text-sm leading-tight">
                   <span class="truncate font-medium">{{ user.name }}</span>
                   <span class="truncate text-xs">{{ user.email }}</span>
