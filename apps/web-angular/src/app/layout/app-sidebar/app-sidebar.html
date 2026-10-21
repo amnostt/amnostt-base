@@ -80,6 +80,23 @@
             <span>Inicio</span>
           </a>
         </li>
+        @if (showTasks()) {
+          <li z-sidebar-menu-item>
+            <a
+              z-sidebar-menu-button
+              routerLink="/tasks"
+              routerLinkActive
+              #tasksLink="routerLinkActive"
+              ariaCurrentWhenActive="page"
+              [zActive]="tasksLink.isActive"
+              zTooltip="Tareas"
+              (click)="sidebar.setOpenMobile(false)"
+            >
+              <ng-icon name="lucideFolder" />
+              <span>Tareas</span>
+            </a>
+          </li>
+        }
         @for (item of navigation; track item.title) {
           <li z-sidebar-menu-item z-collapsible class="group/collapsible" [zOpen]="item.open">
             <button

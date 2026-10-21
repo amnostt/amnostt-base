@@ -84,6 +84,27 @@ export class SessionStore {
     }
   }
 
+  async withAuthenticatedSession<T>(operation: (token: string) => Promise<T>): Promise<T> {
+    const token = this.accessToken();
+
+    if (this.sessionState().status !== 'authenticated' || !token) {
+      throw new Error('An authenticated session is required');
+    }
+
+    const revision = this.sessionRevision;
+    const result = await operation(token);
+
+    if (
+      revision !== this.sessionRevision ||
+      token !== this.accessToken() ||
+      this.sessionState().status !== 'authenticated'
+    ) {
+      throw new Error('Session changed during the request');
+    }
+
+    return result;
+  }
+
   private async restoreSession(revision: number): Promise<void> {
     try {
       const session = await firstValueFrom(this.auth.restore());

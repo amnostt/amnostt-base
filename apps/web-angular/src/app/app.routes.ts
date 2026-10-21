@@ -6,6 +6,9 @@ import { NotFound } from './pages/not-found/not-found';
 import { Login } from './features/auth/presentation/login/login';
 
 import { authGuard } from './features/auth/presentation/guards/auth.guard';
+import { TaskList } from './features/tasks/presentation/task-list/task-list';
+import { permissionGuard } from './features/auth/presentation/guards/permission.guard';
+import { canReadTasks } from './features/tasks/domain/task-permissions';
 
 export const routes: Routes = [
   {
@@ -29,6 +32,12 @@ export const routes: Routes = [
         path: '403',
         component: Forbidden,
         title: 'Acceso denegado',
+      },
+      {
+        path: 'tasks',
+        component: TaskList,
+        title: 'Tareas',
+        canActivate: [permissionGuard(canReadTasks)],
       },
       {
         path: '**',

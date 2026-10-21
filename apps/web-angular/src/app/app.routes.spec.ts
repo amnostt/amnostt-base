@@ -44,14 +44,14 @@ describe('Protected application routes', () => {
     await bootstrap;
   }
 
-  async function authenticate() {
+  async function authenticate(user = currentUser) {
     const login = TestBed.inject(SessionStore).login({
-      email: currentUser.email,
+      email: user.email,
       password: 'example-only-password',
     });
     TestBed.inject(HttpTestingController)
       .expectOne('/api/auth/login')
-      .flush({ data: { accessToken: 'example-access-token', currentUser } });
+      .flush({ data: { accessToken: 'example-access-token', currentUser: user } });
     await login;
   }
 
@@ -145,7 +145,7 @@ describe('Protected application routes', () => {
     },
   );
 
-  it.each(['/', '/403', '/no-existe'])(
+  it.each(['/', '/403', '/no-existe', '/tasks'])(
     'redirects an anonymous visitor from %s without rendering protected content',
     async (path) => {
       await resolveAnonymousSession();
@@ -174,6 +174,90 @@ describe('Protected application routes', () => {
     expect(element.querySelector('app-login')).toBeNull();
     expect(TestBed.inject(SessionStore).state().status).toBe('authenticated');
     TestBed.inject(HttpTestingController).expectNone(() => true);
+  });
+
+  it.each(['tasks:read:own', 'tasks:read:any'])(
+    'admits a Tasks deep link with %s and exposes its active navigation entry',
+    async (permission) => {
+      await authenticate({ ...currentUser, permissions: [permission] });
+      const fixture = TestBed.createComponent(App);
+      const router = TestBed.inject(Router);
+      const http = TestBed.inject(HttpTestingController);
+      await router.navigateByUrl('/tasks');
+      fixture.detectChanges();
+
+      const request = http.expectOne('/api/tasks');
+      expect(request.request.method).toBe('GET');
+      expect(request.request.headers.get('Authorization')).toBe('Bearer example-access-token');
+      request.flush({
+        data: [],
+        meta: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
+      });
+      await vi.waitFor(() => {
+        fixture.detectChanges();
+        expect((fixture.nativeElement as HTMLElement).textContent).toContain('No hay tareas');
+      });
+
+      const element = fixture.nativeElement as HTMLElement;
+      expect(router.url).toBe('/tasks');
+      expect(element.querySelector('app-task-list')).not.toBeNull();
+      expect(element.querySelector('h1')?.textContent).toContain('Tareas');
+      expect(element.textContent).toContain('No hay tareas');
+      const link = element.querySelector<HTMLAnchorElement>('a[href="/tasks"]');
+      expect(link?.textContent).toContain('Tareas');
+      expect(link?.getAttribute('aria-current')).toBe('page');
+      http.expectNone(() => true);
+    },
+  );
+
+  it.each([
+    { role: 'Member', permissions: ['tasks:create:own'] },
+    { role: 'Admin', permissions: [] },
+  ])('denies Tasks without a read permission regardless of role $role', async (access) => {
+    await authenticate({ ...currentUser, ...access });
+    const fixture = TestBed.createComponent(App);
+    const router = TestBed.inject(Router);
+    const http = TestBed.inject(HttpTestingController);
+    const sessionBefore = JSON.stringify(TestBed.inject(SessionStore).state());
+    await router.navigateByUrl('/tasks');
+    fixture.detectChanges();
+    http.expectNone('/api/tasks');
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(router.url).toBe('/403');
+    expect(element.querySelector('h1')?.textContent).toContain('Acceso denegado');
+    expect(element.querySelector('app-task-list')).toBeNull();
+    expect(element.querySelector('a[href="/tasks"]')).toBeNull();
+    expect(TestBed.inject(SessionStore).state().status).toBe('authenticated');
+    expect(JSON.stringify(TestBed.inject(SessionStore).state())).toBe(sessionBefore);
+    http.expectNone(() => true);
+  });
+
+  it('opens Tasks from its sidebar link without restoring the current session again', async () => {
+    await authenticate();
+    const fixture = await render('/');
+    const element = fixture.nativeElement as HTMLElement;
+    const router = TestBed.inject(Router);
+    const http = TestBed.inject(HttpTestingController);
+    const link = element.querySelector<HTMLAnchorElement>('a[href="/tasks"]');
+    expect(link).not.toBeNull();
+    expect(link?.getAttribute('aria-current')).toBeNull();
+    link!.click();
+
+    const request = await vi.waitFor(() => http.expectOne('/api/tasks'));
+    request.flush({
+      data: [],
+      meta: { page: 1, limit: 20, totalItems: 0, totalPages: 0 },
+    });
+    await vi.waitFor(() => expect(router.url).toBe('/tasks'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(element.querySelector('app-task-list')).not.toBeNull();
+    expect(element.querySelector('a[href="/tasks"]')?.getAttribute('aria-current')).toBe('page');
+    http.expectNone(() => true);
   });
 
   it('waits for shared restoration and admits the visitor only after user lookup', async () => {

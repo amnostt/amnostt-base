@@ -32,6 +32,7 @@ import { ZardSidebarImports } from '@/shared/zard/components/sidebar/sidebar.imp
 import { ZardSidebarService } from '@/shared/zard/components/sidebar/sidebar.service';
 import { SessionStore } from '@/features/auth/application/session-store';
 import { CurrentUser } from '@/features/auth/domain/auth-models';
+import { canReadTasks } from '@/features/tasks/domain/task-permissions';
 
 interface SidebarUser {
   name: string;
@@ -105,6 +106,12 @@ export class AppSidebar {
         .toUpperCase() || user.email.charAt(0).toUpperCase();
 
     return { name: user.name, email: user.email, initials };
+  });
+
+  protected readonly showTasks = computed(() => {
+    const snapshot = this.sessionStore.state();
+
+    return snapshot.status === 'authenticated' && canReadTasks(snapshot.user);
   });
 
   protected readonly sidebar = inject(ZardSidebarService);

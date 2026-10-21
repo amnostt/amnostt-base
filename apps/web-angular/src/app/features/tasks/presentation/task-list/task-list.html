@@ -1,0 +1,185 @@
+@let vm = state();
+
+<section class="grid min-w-0 gap-6" aria-labelledby="tasks-heading">
+  <h1 id="tasks-heading" class="text-2xl font-semibold">Tareas</h1>
+
+  <div z-field class="w-full sm:max-w-sm">
+    <label z-field-label for="task-search">Buscar tareas</label>
+    <input
+      z-input
+      id="task-search"
+      type="search"
+      placeholder="Buscar tareas..."
+      [value]="searchText()"
+      (input)="changeSearch($event)"
+    />
+  </div>
+
+  <button
+    z-button
+    z-dropdown
+    zType="outline"
+    zSize="sm"
+    type="button"
+    aria-label="Más opciones de ordenación"
+    aria-describedby="task-current-sort"
+    [zDropdownMenu]="sortMenu"
+  >
+    <span id="task-current-sort">{{ currentSortLabel() }}</span>
+    <ng-icon name="lucideChevronDown" aria-hidden="true" />
+  </button>
+
+  <z-dropdown-menu-content #sortMenu="zDropdownMenuContent" class="w-64">
+    @for (option of secondarySortOptions; track option.value) {
+      <z-dropdown-menu-item (click)="changeSort(option.value)">
+        {{ option.label }}
+      </z-dropdown-menu-item>
+    }
+  </z-dropdown-menu-content>
+
+  <z-select
+    class="w-full sm:w-56"
+    [zValue]="query().status || 'all'"
+    (zSelectionChange)="changeStatus($event)"
+  >
+    <z-select-group>
+      <z-select-item zValue="all">Todos los estados</z-select-item>
+      <z-select-item zValue="pending">Pendiente</z-select-item>
+      <z-select-item zValue="in_progress">En progreso</z-select-item>
+      <z-select-item zValue="completed">Completada</z-select-item>
+    </z-select-group>
+  </z-select>
+
+  <div z-field>
+    <label z-field-label for="task-due-date">Vencimiento</label>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <z-date-picker
+        class="w-full sm:w-64"
+        zId="task-due-date"
+        zMode="single"
+        zLocale="es"
+        zFormat="longDate"
+        zIcon="calendar"
+        zPlaceholder="Todas las fechas"
+        [value]="dueDateValue()"
+        (dateChange)="changeDueDate($event)"
+      />
+
+      <button
+        z-button
+        type="button"
+        zType="ghost"
+        zSize="sm"
+        [zDisabled]="!query().dueDate"
+        (click)="changeDueDate(null)"
+      >
+        Limpiar vencimiento
+      </button>
+    </div>
+  </div>
+
+  @switch (vm.status) {
+    @case ('loading') {
+      <p role="status" class="text-muted-foreground">Cargando tareas...</p>
+    }
+    @case ('error') {
+      <div class="grid justify-items-start gap-3">
+        <p role="alert" class="text-destructive">No se pudieron cargar las tareas.</p>
+        <button z-button type="button" zType="outline" (click)="load()">Reintentar</button>
+      </div>
+    }
+    @case ('ready') {
+      @if (vm.response.data.length === 0) {
+        <p class="text-muted-foreground">No hay tareas para mostrar.</p>
+      } @else {
+        <div class="overflow-x-auto rounded-md border">
+          <table z-table class="min-w-160">
+            <caption z-table-caption class="sr-only">
+              Listado de tareas
+            </caption>
+            <thead z-table-header>
+              <tr z-table-row>
+                <th z-table-head scope="col" [attr.aria-sort]="columnSort('title')">
+                  <button
+                    z-button
+                    zType="ghost"
+                    zSize="sm"
+                    type="button"
+                    (click)="toggleColumnSort('title')"
+                  >
+                    Título
+                    <ng-icon [name]="columnIcon('title')" aria-hidden="true" />
+                  </button>
+                </th>
+                <th z-table-head scope="col">Descripción</th>
+                <th z-table-head scope="col">Estado</th>
+                <th z-table-head scope="col" [attr.aria-sort]="columnSort('dueDate')">
+                  <button
+                    z-button
+                    zType="ghost"
+                    zSize="sm"
+                    type="button"
+                    (click)="toggleColumnSort('dueDate')"
+                  >
+                    Vencimiento
+                    <ng-icon [name]="columnIcon('dueDate')" aria-hidden="true" />
+                  </button>
+                </th>
+              </tr>
+            </thead>
+            <tbody z-table-body>
+              @for (task of vm.response.data; track task.id) {
+                <tr z-table-row>
+                  <td z-table-cell class="font-medium">{{ task.title }}</td>
+                  <td z-table-cell>{{ task.description ?? '—' }}</td>
+                  <td z-table-cell>{{ task.status }}</td>
+                  <td z-table-cell class="whitespace-nowrap">
+                    {{ task.dueDate ?? '—' }}
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    }
+  }
+  <div class="flex flex-wrap items-center justify-between gap-4">
+    @if (vm.status === 'ready' && vm.response.data.length > 0) {
+      <p class="text-muted-foreground text-sm">Total: {{ vm.response.meta.totalItems }}</p>
+    }
+
+    <div role="group" aria-label="Tareas por página" class="flex items-center gap-2">
+      <span class="text-sm font-medium">Tareas por página</span>
+
+      <z-select
+        class="w-24"
+        [zValue]="query().limit.toString()"
+        (zSelectionChange)="changeLimit($event)"
+      >
+        <z-select-group>
+          @for (limit of pageSizeOptions; track limit) {
+            <z-select-item [zValue]="limit.toString()">
+              {{ limit }}
+            </z-select-item>
+          }
+        </z-select-group>
+      </z-select>
+    </div>
+
+    @if (paginationMeta(); as meta) {
+      <z-pagination
+        class="mx-0 w-auto"
+        zAriaLabel="Paginación de tareas"
+        zPreviousText="Anterior"
+        zNextText="Siguiente"
+        zSize="icon-sm"
+        [zTotal]="meta.totalPages"
+        [zPageIndex]="query().page"
+        [zDisabled]="vm.status !== 'ready' || meta.totalPages === 0"
+        (zPageIndexChange)="changePage($event)"
+      />
+    }
+  </div>
+</section>
