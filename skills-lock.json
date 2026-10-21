@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "zard": {
+      "source": "zard-ui/zardui",
+      "sourceType": "github",
+      "skillPath": "skills/zard/SKILL.md",
+      "computedHash": "34f8729bdfb213a6a0d17114f450ae79db53615629ec6154f0ecf1d7cbae01ac"
+    }
+  }
+}

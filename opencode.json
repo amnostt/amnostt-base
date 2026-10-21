@@ -1,0 +1,71 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "zard-ui": {
+        "type": "local",
+        "command": ["pnpm", "dlx", "zard-mcp@1.1.0"],
+        "cwd": "apps/web-angular"
+      }
+    }
+  },
+  "permissions": [
+    {
+      "action": "zard-ui_install-component",
+      "resource": "*",
+      "effect": "deny"
+    }
+  ],
+  "policies": [
+    {
+      "action": "tool.use",
+      "resource": "zard-ui_*:*",
+      "effect": "deny"
+    },
+    {
+      "action": "tool.use",
+      "resource": "zard-ui_list-components:*",
+      "effect": "allow"
+    },
+    {
+      "action": "tool.use",
+      "resource": "zard-ui_search-components:*",
+      "effect": "allow"
+    },
+    {
+      "action": "tool.use",
+      "resource": "zard-ui_get-component:*",
+      "effect": "allow"
+    },
+    {
+      "action": "tool.use",
+      "resource": "zard-ui_get-component-docs:*",
+      "effect": "allow"
+    },
+    {
+      "action": "tool.use",
+      "resource": "zard-ui_get-component-examples:*",
+      "effect": "allow"
+    },
+    {
+      "action": "tool.use",
+      "resource": "zard-ui_get-dependencies:*",
+      "effect": "allow"
+    },
+    {
+      "action": "tool.use",
+      "resource": "zard-ui_get-docs:*",
+      "effect": "allow"
+    },
+    {
+      "action": "tool.use",
+      "resource": "zard-ui_list-blocks:*",
+      "effect": "allow"
+    },
+    {
+      "action": "tool.use",
+      "resource": "zard-ui_get-block:*",
+      "effect": "allow"
+    }
+  ]
+}

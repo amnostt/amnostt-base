@@ -65,6 +65,15 @@ Normaliza solo Markdown y configuración para los que el repositorio ofrece sopo
 - Conserva `.codegraph/` y los trackers históricos. No borres artefactos existentes fuera del alcance autorizado.
 - No marques tareas del tracker sin evidencia observada. Antes de entregar, comprueba alcance, enlaces, rutas documentadas y comandos del gate.
 
+## Zard para Angular
+
+- La skill oficial `zard` está instalada a nivel de proyecto en `.agents/skills/zard/`; úsala solo para la UI de `apps/web-angular`, no para `apps/web` (React) ni la API.
+- Antes de trabajar con Zard, carga la skill y lee `apps/web-angular/components.json`. Ejecuta los comandos `pnpm dlx zard-cli ...` desde `apps/web-angular`; la ausencia de `components.json` en la raíz del monorepo no requiere ejecutar `init`.
+- Reutiliza los componentes instalados en `apps/web-angular/src/app/shared/zard/` y consulta su API real. Si la skill o el registro upstream discrepan del código instalado y sus pruebas, documenta la diferencia antes de cambiar comportamiento.
+- La instalación de la skill no autoriza migraciones, reinicialización, cambios de dependencias ni sobrescrituras con `--overwrite`. No ejecutes `zard-migration` ni reemplaces componentes existentes sin autorización explícita.
+- Conserva la skill oficial sin modificaciones locales y versiona `skills-lock.json` junto con sus archivos. Para reinstalarla desde la raíz: `pnpm dlx skills add https://github.com/zard-ui/zardui --skill zard --agent opencode`.
+- El MCP `zard-ui` se configura en `opencode.json` para este proyecto, con `zard-mcp@1.1.0` y directorio de trabajo `apps/web-angular`. Solo se permiten las nueve herramientas de consulta; `install-component` y cualquier herramienta nueva quedan bloqueadas por defecto. Verifica la conexión con `opencode mcp list` y contrasta las respuestas upstream con los componentes locales; no cambies los permisos ni actualices la versión como efecto lateral de una tarea de UI.
+
 ## Impeccable
 
 - Se usa la instalación global; no reinstales, actualices ni mantengas un proveedor local bajo `.opencode/`.
