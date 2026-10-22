@@ -13,4 +13,11 @@ export interface Task {
   updatedAt: string;
 }
 
+export interface CreateTaskInput {
+  title: string;
+  description?: string;
+  status: TaskStatus;
+  dueDate?: string;
+}
+
 export type TaskListResponse = PaginatedResponse<Task>;

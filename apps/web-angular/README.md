@@ -1,6 +1,6 @@
 # Angular experimental app
 
-`apps/web-angular` is an independent Angular SPA alongside the React application. It contains an experimental UI shell and an in-progress authentication/session foundation, not complete authentication, permission, or task flows.
+`apps/web-angular` is an independent, experimental Angular SPA alongside the React application. It implements login, session restoration, logout, permission-aware navigation, and task listing and creation. Task editing, deletion, and user registration remain pending.
 
 ## Run and verify
 
@@ -33,6 +33,16 @@ The sidebar's logout action calls the cookie-backed `POST /api/auth/logout` endp
 `src/app/features/auth/presentation/login/` contains the Spanish login component adapted from Zard's `login-02`, available publicly at `/login` outside the sidebar shell. It preserves the two-column desktop layout, hides the demonstration cover on smaller screens, and provides labelled credential inputs and local validation. GitHub, registration, and password recovery remain visible but disabled demonstration actions. Submission calls `SessionStore.login()`, derives loading from its state, clears the password after authenticated success, and navigates to `/` with history replacement. A rejected login stays on the form with a safe Spanish error. Component and routing tests exercise these behaviors through the rendered form and a mocked HTTP backend, including duplicate-submission prevention, retry, and entry into the guarded shell. The user accepted the login layout and reported a successful local login-to-sidebar-to-logout flow after starting the database. This manual confirmation is separate from the mocked tests; automated browser cookie and server-revocation checks have not been performed.
 
 The development server forwards `/api/**` through `src/proxy.conf.json` to the local API at `http://localhost:3000`; restart `ng serve` after changing the proxy. This proxy does not configure production deployment. Follow the local tracker `odd/tasks/angular-auth-session.md` from the repository root for the current slice; `odd/` is ignored by Git and mirrored in Engram.
+
+## Tasks
+
+The protected `/tasks` route lists authorized tasks with loading, empty, error and retry states. Search, filters, sorting and pagination are backed by URL query parameters. `TasksApi` uses the shared `AuthenticatedApiClient`; credentials remain owned by `SessionStore`, and obsolete session results are rejected.
+
+Creation is available with `tasks:create:own` or `tasks:create:any`, independently of role names. The backend still authorizes every request and determines ownership. A single reactive form opens in the official Zard Sheet: bottom on mobile, right on desktop. It submits a trimmed title, optional description and calendar date, and the selected status; title and description limits remain 120 and 2,000 characters.
+
+- Closing a changed draft through the corner button, Escape or backdrop opens the official AlertDialog. Continuing editing retains the same form and values; discarding closes without saving or refreshing, and reopening starts empty. Returning all values to their defaults allows a clean close.
+- Saving blocks all three close routes and duplicate submissions. Success closes the Sheet and refreshes the current query once. Failure preserves entered values and permits retry; a late result from a replaced session cannot publish success.
+- Component, routing and mocked HTTP integration tests exercise these behaviors, including current-query refresh ordering. The user reported successful browser checks on desktop/mobile; this is separate from automated browser or real-service persistence verification. Editing and deletion are not implemented in Angular yet.
 
 ## UI components and theme
 

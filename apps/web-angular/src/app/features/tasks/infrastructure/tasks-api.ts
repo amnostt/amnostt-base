@@ -1,6 +1,6 @@
 import { AuthenticatedApiClient } from '@/core/http/authenticated-api-client';
 import { inject, Service } from '@angular/core';
-import type { TaskListResponse } from '../domain/task-model';
+import type { CreateTaskInput, Task, TaskListResponse } from '../domain/task-model';
 import { serializeTaskQuery, TASK_QUERY_DEFAULTS, type TaskQueryState } from '../domain/task-query';
 
 @Service()
@@ -11,5 +11,9 @@ export class TasksApi {
     const search = serializeTaskQuery(query);
 
     return this.client.get<TaskListResponse>(`/tasks${search}`);
+  }
+
+  create(input: CreateTaskInput): Promise<Task> {
+    return this.client.post<Task>('/tasks', input);
   }
 }

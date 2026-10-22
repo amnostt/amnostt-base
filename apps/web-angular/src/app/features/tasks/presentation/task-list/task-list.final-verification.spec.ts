@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { vi } from 'vitest';
+import { SessionStore } from '@/features/auth/application/session-store';
 
 import { provideZard } from '@/shared/zard/core/provider/providezard';
 import type { TaskListResponse } from '../../domain/task-model';
@@ -45,6 +46,7 @@ describe('independent Tasks ordering checks', () => {
       providers: [
         provideZard(),
         provideRouter([{ path: 'tasks', component: TaskList }]),
+        { provide: SessionStore, useValue: { state: () => ({ status: 'unauthenticated' }) } },
         { provide: TasksApi, useValue: api },
       ],
     });

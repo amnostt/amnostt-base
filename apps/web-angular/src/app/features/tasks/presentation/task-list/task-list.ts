@@ -1,4 +1,10 @@
-import { Component, DestroyRef, inject, type OnInit, signal, computed } from '@angular/core';
+import { Component, DestroyRef, inject, type OnInit, signal, computed, viewChild } from '@angular/core';
+import { BreakpointObserver } from '@angular/cdk/layout';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { ActivatedRoute, Router } from '@angular/router';
+
+import { canCreateTasks } from '../../domain/task-permissions';
+import { SessionStore } from '@/features/auth/application/session-store';
 import type { TaskListResponse } from '../../domain/task-model';
 import { TasksApi } from '../../infrastructure/tasks-api';
 import { ZardButtonComponent } from '@/shared/zard/components/button';
@@ -9,8 +15,13 @@ import { ZardSelectImports } from '@/shared/zard/components/select';
 import { ZardTableImports } from '@/shared/zard/components/table';
 import { ZardDropdownImports } from '@/shared/zard/components/dropdown';
 import { ZardPaginationImports } from '@/shared/zard/components/pagination';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ZardSheetImports } from '@/shared/zard/components/sheet';
+import { ZardSheetComponent } from '@/shared/zard/components/sheet';
+import { ZardAlertDialogService } from '@/shared/zard/components/alert-dialog';
+import { ZardAlertDialogRef } from '@/shared/zard/components/alert-dialog';
+
 import type { CalendarValue } from '@/shared/zard/components/calendar';
+import { TaskForm } from '../task-form/task-form';
 
 import {
   parseTaskQuery,
@@ -20,7 +31,6 @@ import {
   type TaskQueryState,
 } from '../../domain/task-query';
 import { distinctUntilChanged, EMPTY, map, Subject, switchMap, timer } from 'rxjs';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   lucideArrowDown,
   lucideArrowUp,
@@ -42,6 +52,8 @@ type TaskListState =
     ZardTableImports,
     ZardDropdownImports,
     ZardPaginationImports,
+    ZardSheetImports,
+    TaskForm,
     NgIcon,
   ],
   viewProviders: [
@@ -61,8 +73,27 @@ export class TaskList implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly session = inject(SessionStore);
+  private readonly breakpoints = inject(BreakpointObserver);
+
+  private readonly createForm = viewChild(TaskForm);
+  private readonly alertDialog = inject(ZardAlertDialogService);
+  private discardDialog: ZardAlertDialogRef<void> | null = null;
+
   private readonly searchChanges = new Subject<string | null>();
   private requestRevision = 0;
+
+  protected readonly createOpen = signal(false);
+  protected readonly canCreate = computed(() => {
+    const state = this.session.state();
+
+    return state.status === 'authenticated' && canCreateTasks(state.user);
+  });
+
+  protected readonly isMobile = toSignal(
+    this.breakpoints.observe('(max-width: 767.98px)').pipe(map((state) => state.matches)),
+    { initialValue: false },
+  );
 
   protected readonly state = signal<TaskListState>({
     status: 'loading',
@@ -107,6 +138,41 @@ export class TaskList implements OnInit {
   protected readonly pageSizeOptions = [10, 20, 50, 100] as const;
 
   protected readonly paginationMeta = signal<TaskListResponse['meta'] | null>(null);
+
+  protected onCreateVisibleChange(visible: boolean, sheet: ZardSheetComponent): void {
+    if (visible) return;
+    const state = this.createForm()?.getCloseState();
+
+    if (!state || (!state.saving && !state.dirty)) {
+      this.createOpen.set(false);
+      return;
+    }
+
+    sheet.zVisible.set(true);
+
+    if (state.saving || this.discardDialog) return;
+
+    this.discardDialog = this.alertDialog.create<void>({
+      zTitle: '¿Descartar los cambios?',
+      zDescription: 'Los cambios sin guardar se perderán.',
+      zCancelText: 'Seguir editando',
+      zOkText: 'Descartar',
+      zOkDestructive: true,
+      zMaskClosable: false,
+      zOnCancel: () => {
+        this.discardDialog = null;
+      },
+      zOnOk: () => {
+        this.discardDialog = null;
+        this.createOpen.set(false);
+      },
+    });
+  }
+
+  protected onTaskSaved(): void {
+    this.createOpen.set(false);
+    void this.load();
+  }
 
   protected toggleColumnSort(field: 'title' | 'dueDate'): void {
     this.changeSort(this.query().sort === field ? `-${field}` : field);
@@ -217,6 +283,7 @@ export class TaskList implements OnInit {
   ngOnInit(): void {
     this.destroyRef.onDestroy(() => {
       this.requestRevision++;
+      this.discardDialog?.close()
     });
 
     this.searchChanges

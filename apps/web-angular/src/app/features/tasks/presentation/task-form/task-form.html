@@ -1,0 +1,101 @@
+@let title = taskForm.controls.title;
+@let titleInvalid = title.touched && title.invalid;
+@let description = taskForm.controls.description;
+@let descriptionInvalid = description.touched && description.invalid;
+@let dueDate = taskForm.controls.dueDate;
+
+<form
+  [formGroup]="taskForm"
+  (ngSubmit)="onSubmit()"
+  [attr.aria-busy]="saving()"
+  class="flex flex-col gap-6"
+  novalidate
+>
+  <div z-field-group>
+    <div z-field [attr.data-invalid]="titleInvalid || null">
+      <label z-field-label for="task-title">Título</label>
+      <input
+        z-input
+        id="task-title"
+        type="text"
+        formControlName="title"
+        required
+        [readOnly]="saving()"
+        [attr.aria-invalid]="titleInvalid"
+        [attr.aria-describedby]="titleInvalid ? 'task-title-error' : null"
+      />
+      @if (titleInvalid) {
+        <z-field-error id="task-title-error">
+          @if (title.hasError('required')) {
+            Ingresa un título.
+          } @else if (title.hasError('maxlength')) {
+            El título debe tener como máximo 120 caracteres.
+          }
+        </z-field-error>
+      }
+    </div>
+    <div z-field [attr.data-invalid]="descriptionInvalid || null">
+      <label z-field-label for="task-description">Descripción</label>
+      <textarea
+        z-textarea
+        id="task-description"
+        formControlName="description"
+        rows="4"
+        [readOnly]="saving()"
+        [attr.aria-invalid]="descriptionInvalid"
+        [attr.aria-describedby]="descriptionInvalid ? 'task-description-error' : null"
+      ></textarea>
+
+      @if (descriptionInvalid) {
+        <z-field-error id="task-description-error">
+          La descripción debe tener como máximo 2000 caracteres.
+        </z-field-error>
+      }
+    </div>
+    <div z-field role="group" aria-labelledby="task-status-label">
+      <div z-field-title id="task-status-label">Estado</div>
+
+      <z-select formControlName="status" [zDisabled]="saving()">
+        <z-select-group>
+          <z-select-item zValue="pending">Pendiente</z-select-item>
+          <z-select-item zValue="in_progress">En progreso</z-select-item>
+          <z-select-item zValue="completed">Completada</z-select-item>
+        </z-select-group>
+      </z-select>
+    </div>
+    <div z-field>
+      <label z-field-label for="task-due-date">Fecha de vencimiento</label>
+
+      <z-date-picker
+        zId="task-due-date"
+        formControlName="dueDate"
+        zMode="single"
+        zLocale="es"
+        zPlaceholder="Sin vencimiento"
+        [disabled]="saving()"
+      />
+
+      @if (dueDate.value) {
+        <button
+          z-button
+          type="button"
+          zType="ghost"
+          [zDisabled]="saving()"
+          (click)="dueDate.setValue(null)"
+        >
+          Limpiar vencimiento
+        </button>
+      }
+    </div>
+  </div>
+
+  @if (errorMessage(); as message) {
+    <p role="alert" class="text-destructive text-sm">
+      {{ message }}
+    </p>
+  }
+
+  <button z-button type="submit" [zLoading]="saving()" [zDisabled]="saving()">
+    {{ saving() ? 'Creando…' : 'Crear tarea' }}
+  </button>
+</form>

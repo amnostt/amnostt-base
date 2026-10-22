@@ -2,6 +2,7 @@ import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, convertToParamMap, type Params, provideRouter } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
 import { vi } from 'vitest';
+import { SessionStore } from '@/features/auth/application/session-store';
 import { provideZard } from '@/shared/zard/core/provider/providezard';
 import type { TaskListResponse } from '../../domain/task-model';
 import { TASK_QUERY_DEFAULTS, type TaskQueryState } from '../../domain/task-query';
@@ -59,6 +60,7 @@ describe('TaskList', () => {
       providers: [
         provideZard(),
         provideRouter([]),
+        { provide: SessionStore, useValue: { state: () => ({ status: 'unauthenticated' }) } },
         { provide: TasksApi, useValue: api },
         { provide: ActivatedRoute, useValue: route },
       ],

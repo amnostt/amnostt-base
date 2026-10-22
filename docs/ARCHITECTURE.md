@@ -4,14 +4,14 @@ Este documento describe el workspace y el comportamiento respaldado por código 
 
 ## Workspace
 
-| Área                                        | Responsabilidad                                                                                                                     |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/api` (`@amnostt/api`)                 | API NestJS, autenticación, autorización, Tasks, health checks y acceso a PostgreSQL mediante Prisma.                                |
-| `apps/web` (`@amnostt/web`)                 | Interfaz React/Vite, sesión de usuario, rutas protegidas y experiencia de Tasks.                                                    |
-| `apps/web-angular` (`@amnostt/web-angular`) | SPA Angular experimental e independiente; shell UI con routing y componentes Zard. No implementa Auth, sesiones, permisos ni Tasks. |
-| `packages/*`                                | Reservado; actualmente vacío.                                                                                                       |
+| Área                                        | Responsabilidad                                                                                             |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `apps/api` (`@amnostt/api`)                 | API NestJS, autenticación, autorización, Tasks, health checks y acceso a PostgreSQL mediante Prisma.        |
+| `apps/web` (`@amnostt/web`)                 | Interfaz React/Vite, sesión de usuario, rutas protegidas y experiencia de Tasks.                            |
+| `apps/web-angular` (`@amnostt/web-angular`) | SPA Angular experimental independiente; sesión, navegación protegida, listado y creación de Tasks con Zard. |
+| `packages/*`                                | Reservado; actualmente vacío.                                                                               |
 
-La API aplica el prefijo `/api`. La web usa `VITE_API_URL` o `http://localhost:3000/api`. Angular se inicia independientemente en `http://localhost:5174`; no forma parte de los flujos de identidad o Tasks descritos aquí. El esquema y migraciones Prisma viven en `apps/api/prisma`; el cliente generado vive en `apps/api/src/generated/prisma` y no se edita manualmente.
+La API aplica el prefijo `/api`. La web React usa `VITE_API_URL` o `http://localhost:3000/api`. Angular se inicia independientemente en `http://localhost:5174` y su proxy de desarrollo dirige `/api/**` a la API local. Los flujos React se describen abajo; el alcance Angular se distingue en su sección final. El esquema y migraciones Prisma viven en `apps/api/prisma`; el cliente generado vive en `apps/api/src/generated/prisma` y no se edita manualmente.
 
 ## Límites de la API
 
@@ -83,4 +83,11 @@ Para bootstrap y comandos del workspace consulta [`README.md`](../README.md); pa
 
 ## App Angular experimental
 
-La entrada de la SPA vive en `apps/web-angular/src/main.ts`; `app.config.ts` configura sus proveedores y `app.routes.ts` sus rutas. La shell standalone se encuentra en `src/app/app.ts` y su plantilla en `src/app/app.html`. Los componentes Zard y sus utilidades compartidas están bajo `src/app/shared/`; `components.json` registra la configuración de generación. Las pruebas unitarias se ejecutan con `pnpm test:web-angular` y la compilación con `pnpm build:web-angular`. La configuración habitual de `pnpm lint`, `pnpm test` y `pnpm build` cubre React y API, no esta app experimental.
+La entrada de la SPA vive en `apps/web-angular/src/main.ts`; `app.config.ts` configura sus proveedores y `app.routes.ts` sus rutas. La shell protegida y sus componentes usan Zard; los componentes copiados viven en `src/app/shared/zard/` y `components.json` registra su configuración.
+
+- `SessionStore` mantiene el token en memoria y coordina login, restauración y logout. `AuthenticatedApiClient` reutiliza su control de sesión para GET y POST; rechaza respuestas de una sesión sustituida. Los guards y las acciones visibles usan permisos, sin sustituir autorización del backend.
+- `TaskList` conserva búsqueda, filtros, orden y paginación en la URL y obtiene datos mediante `TasksApi`. La creación usa un único `TaskForm` dentro de un Sheet inferior en móvil o lateral derecho en escritorio, sin introducir una URL de creación.
+- El formulario valida título y descripción y envía estado y fecha de calendario mediante POST. Un borrador modificado requiere confirmación para descartarse; cancelar conserva la misma instancia y sus valores. Durante el guardado se bloquean los cierres por botón, Escape y fondo. Un guardado exitoso cierra el Sheet y actualiza la consulta vigente; un fallo conserva el borrador y permite reintentar.
+- Edición, eliminación y registro de usuarios en Angular siguen pendientes. Las pruebas usan HTTP simulado; la comprobación manual informada por el usuario no equivale a una suite E2E automatizada.
+
+Consulta el detalle en la [guía de Angular](../apps/web-angular/README.md). Sus comprobaciones son `pnpm lint:web-angular`, `pnpm test:web-angular --watch=false` y `pnpm build:web-angular`. La configuración habitual de `pnpm lint`, `pnpm test` y `pnpm build` cubre React y API, no esta app experimental.

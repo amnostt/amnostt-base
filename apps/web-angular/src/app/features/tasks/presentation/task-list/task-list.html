@@ -1,7 +1,13 @@
 @let vm = state();
 
 <section class="grid min-w-0 gap-6" aria-labelledby="tasks-heading">
-  <h1 id="tasks-heading" class="text-2xl font-semibold">Tareas</h1>
+  <header class="flex flex-wrap items-center justify-between gap-3">
+    <h1 id="tasks-heading" class="text-2xl font-semibold">Tareas</h1>
+
+    @if (canCreate()) {
+      <button z-button type="button" (click)="createOpen.set(true)">Crear tarea</button>
+    }
+  </header>
 
   <div z-field class="w-full sm:max-w-sm">
     <label z-field-label for="task-search">Buscar tareas</label>
@@ -182,4 +188,23 @@
       />
     }
   </div>
+  @if (canCreate()) {
+    <z-sheet
+      #createSheet="zSheet"
+      [zVisible]="createOpen()"
+      (zVisibleChange)="onCreateVisibleChange($event, createSheet)"
+      [zSide]="isMobile() ? 'bottom' : 'right'"
+    >
+      <z-sheet-header>
+        <z-sheet-title>Crear tarea</z-sheet-title>
+        <z-sheet-description> Completa los datos para crear una tarea. </z-sheet-description>
+      </z-sheet-header>
+
+      <div class="px-6 pb-6">
+        @if (createOpen()) {
+          <app-task-form (saved)="onTaskSaved()" />
+        }
+      </div>
+    </z-sheet>
+  }
 </section>
