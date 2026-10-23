@@ -210,6 +210,124 @@ describe('AuthenticatedApiClient', () => {
     });
   });
 
+  describe('PATCH', () => {
+    const path = '/tasks/example-task-id';
+    const input = {
+      title: 'Updated report',
+      description: null,
+      status: 'completed',
+      dueDate: null,
+    };
+    const updated = { id: 'example-task-id', ...input };
+
+    it('sends the unchanged update body with session credentials and returns the resource', async () => {
+      await authenticate();
+
+      const pending = client.patch<typeof updated>(path, input);
+      const request = http.expectOne(`/api${path}`);
+      expect(request.request.method).toBe('PATCH');
+      expect(request.request.body).toEqual(input);
+      expect(request.request.headers.get('Authorization')).toBe('Bearer example-login-token');
+      expect(request.request.withCredentials).toBe(true);
+      request.flush(updated);
+
+      await expect(pending).resolves.toEqual(updated);
+      expect(session.state()).toEqual({ status: 'authenticated', user });
+      expect(JSON.stringify(session.state())).not.toContain('example-login-token');
+    });
+
+    it('preserves omitted fields in a partial update without adding defaults', async () => {
+      await authenticate();
+      const partial = { status: 'in_progress' };
+
+      const pending = client.patch<typeof updated>(path, partial);
+      const request = http.expectOne(`/api${path}`);
+      expect(request.request.method).toBe('PATCH');
+      expect(request.request.body).toEqual(partial);
+      request.flush(updated);
+
+      await expect(pending).resolves.toEqual(updated);
+      expect(session.state()).toEqual({ status: 'authenticated', user });
+      http.expectNone(() => true);
+    });
+
+    it.each(['bootstrap-loading', 'unauthenticated'] as const)(
+      'rejects without sending a PATCH when the session is %s',
+      async (status) => {
+        if (status === 'unauthenticated') {
+          const restoration = session.bootstrap();
+          http.expectOne('/api/auth/refresh').flush(null, {
+            status: 401,
+            statusText: 'Unauthorized',
+          });
+          await restoration;
+        }
+
+        await expect(client.patch(path, input)).rejects.toBeInstanceOf(Error);
+        expect(session.state()).toEqual({ status });
+        http.expectNone(() => true);
+      },
+    );
+
+    it.each(['https://example.org/tasks', '//example.org/tasks'])(
+      'rejects PATCH to the external URL %s without sending credentials or data',
+      async (externalPath) => {
+        await authenticate();
+
+        await expect(client.patch(externalPath, input)).rejects.toMatchObject({
+          message: 'Only API-relative paths are allowed',
+        });
+        expect(session.state()).toEqual({ status: 'authenticated', user });
+        http.expectNone(() => true);
+      },
+    );
+
+    it.each(['signed-out', 'signed-in-again'] as const)(
+      'rejects a late PATCH result after logout when the user is %s',
+      async (phase) => {
+        await authenticate();
+
+        const pending = client.patch<typeof updated>(path, input);
+        const rejection = expect(pending).rejects.toMatchObject({
+          message: 'Session changed during the request',
+        });
+        const request = http.expectOne(`/api${path}`);
+        const logout = session.logout();
+        http.expectOne('/api/auth/logout').flush(null, {
+          status: 204,
+          statusText: 'No Content',
+        });
+        await logout;
+        if (phase === 'signed-in-again') {
+          await authenticate();
+        }
+        request.flush(updated);
+
+        await rejection;
+        expect(session.state()).toEqual(
+          phase === 'signed-out'
+            ? { status: 'unauthenticated' }
+            : { status: 'authenticated', user },
+        );
+        http.expectNone(() => true);
+      },
+    );
+
+    it('preserves the API error for edit feedback without changing the session', async () => {
+      await authenticate();
+      const errorBody = { message: 'Validation failed', details: [{ field: 'title' }] };
+
+      const pending = client.patch(path, input);
+      const rejection = expect(pending).rejects.toMatchObject({ status: 400, error: errorBody });
+      const request = http.expectOne(`/api${path}`);
+      request.flush(errorBody, { status: 400, statusText: 'Bad Request' });
+
+      await rejection;
+      expect(session.state()).toEqual({ status: 'authenticated', user });
+      http.expectNone(() => true);
+    });
+  });
+
   it.each([
     '',
     'tasks',

@@ -18,6 +18,10 @@ export class AuthenticatedApiClient {
     return this.request<T>('POST', path, body);
   }
 
+  patch<T>(path: string, body: unknown): Promise<T> {
+    return this.request<T>('PATCH', path, body);
+  }
+
   private async request<T>(method: HttpMethod, path: string, body?: unknown): Promise<T> {
     if (!path.startsWith('/') || path.startsWith('//') || path.includes('\\')) {
       throw new Error('Only API-relative paths are allowed');

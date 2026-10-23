@@ -129,7 +129,8 @@ describe('TaskList', () => {
       const cells = Array.from(rows[index].querySelectorAll('td'), (cell) =>
         cell.textContent?.trim(),
       );
-      expect(cells).toEqual([
+      expect(cells).toHaveLength(5);
+      expect(cells.slice(0, 4)).toEqual([
         task.title,
         task.description ?? '—',
         task.status,

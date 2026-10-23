@@ -1,6 +1,11 @@
 import { AuthenticatedApiClient } from '@/core/http/authenticated-api-client';
 import { inject, Service } from '@angular/core';
-import type { CreateTaskInput, Task, TaskListResponse } from '../domain/task-model';
+import type {
+  CreateTaskInput,
+  Task,
+  TaskListResponse,
+  UpdateTaskInput,
+} from '../domain/task-model';
 import { serializeTaskQuery, TASK_QUERY_DEFAULTS, type TaskQueryState } from '../domain/task-query';
 
 @Service()
@@ -15,5 +20,9 @@ export class TasksApi {
 
   create(input: CreateTaskInput): Promise<Task> {
     return this.client.post<Task>('/tasks', input);
+  }
+
+  update(id: string, input: UpdateTaskInput): Promise<Task> {
+    return this.client.patch<Task>(`/tasks/${id}`, input);
   }
 }

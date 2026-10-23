@@ -1,4 +1,14 @@
-import { ChangeDetectionStrategy, Component, inject, output, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  output,
+  signal,
+  computed,
+  effect,
+  input,
+  untracked,
+} from '@angular/core';
 import {
   FormControl,
   FormGroup,
@@ -44,6 +54,26 @@ export class TaskForm {
   private readonly api = inject(TasksApi);
 
   readonly saved = output<Task>();
+  readonly task = input<Task | null>(null);
+
+  private readonly initialValues = computed(() => {
+    const task = this.task();
+    const date = task?.dueDate?.split('-').map(Number);
+
+    return {
+      title: task?.title ?? '',
+      description: task?.description ?? '',
+      status: task?.status ?? 'pending',
+      dueDate: date ? new Date(date[0], date[1] - 1, date[2], 12) : null,
+    };
+  });
+
+  constructor() {
+    effect(() => {
+      const values = this.initialValues();
+      untracked(() => this.taskForm.reset(values));
+    });
+  }
 
   protected readonly saving = signal(false);
   protected readonly errorMessage = signal<string | null>(null);
@@ -71,6 +101,8 @@ export class TaskForm {
       return;
     }
 
+    const editingTask = this.task();
+
     this.saving.set(true);
     this.errorMessage.set(null);
 
@@ -85,16 +117,30 @@ export class TaskForm {
           ].join('-')
         : undefined;
 
-      const task = await this.api.create({
+      const base = {
         title: this.taskForm.controls.title.value.trim(),
         status: this.taskForm.controls.status.value,
-        ...(description ? { description } : {}),
-        ...(dueDate ? { dueDate } : {}),
-      });
+      };
+
+      const task = editingTask
+        ? await this.api.update(editingTask.id, {
+            ...base,
+            description: description || null,
+            dueDate: dueDate ?? null,
+          })
+        : await this.api.create({
+            ...base,
+            ...(description ? { description } : {}),
+            ...(dueDate ? { dueDate } : {}),
+          });
 
       this.saved.emit(task);
     } catch {
-      this.errorMessage.set('No pudimos crear la tarea. Inténtalo de nuevo.');
+      this.errorMessage.set(
+        editingTask
+          ? 'No pudimos actualizar la tarea. Inténtalo de nuevo.'
+          : 'No pudimos crear la tarea. Inténtalo de nuevo.',
+      );
     } finally {
       this.saving.set(false);
     }
@@ -102,14 +148,15 @@ export class TaskForm {
 
   getCloseState(): { dirty: boolean; saving: boolean } {
     const values = this.taskForm.getRawValue();
+    const initial = this.initialValues();
 
     return {
       saving: this.saving(),
       dirty:
-        values.title !== '' ||
-        values.description !== '' ||
-        values.status !== 'pending' ||
-        values.dueDate !== null,
+        values.title !== initial.title ||
+        values.description !== initial.description ||
+        values.status !== initial.status ||
+        values.dueDate?.toDateString() !== initial.dueDate?.toDateString(),
     };
   }
 }

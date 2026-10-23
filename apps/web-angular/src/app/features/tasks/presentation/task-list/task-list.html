@@ -5,7 +5,7 @@
     <h1 id="tasks-heading" class="text-2xl font-semibold">Tareas</h1>
 
     @if (canCreate()) {
-      <button z-button type="button" (click)="createOpen.set(true)">Crear tarea</button>
+      <button z-button type="button" (click)="openCreate()">Crear tarea</button>
     }
   </header>
 
@@ -132,16 +132,48 @@
                     <ng-icon [name]="columnIcon('dueDate')" aria-hidden="true" />
                   </button>
                 </th>
+                <th z-table-head scope="col">Acciones</th>
               </tr>
             </thead>
             <tbody z-table-body>
               @for (task of vm.response.data; track task.id) {
-                <tr z-table-row>
+                <tr
+                  z-table-row
+                  z-context-menu
+                  [zContextMenuTriggerFor]="taskMenu"
+                  [zDisabled]="!canEdit(task)"
+                >
                   <td z-table-cell class="font-medium">{{ task.title }}</td>
                   <td z-table-cell>{{ task.description ?? '—' }}</td>
                   <td z-table-cell>{{ task.status }}</td>
                   <td z-table-cell class="whitespace-nowrap">
                     {{ task.dueDate ?? '—' }}
+                  </td>
+                  <td z-table-cell>
+                    @if (canEdit(task)) {
+                      <button
+                        z-button
+                        z-dropdown
+                        type="button"
+                        zType="ghost"
+                        zSize="sm"
+                        [attr.aria-label]="'Acciones de ' + task.title"
+                        [zDropdownMenu]="taskMenu"
+                      >
+                        Acciones
+                        <ng-icon name="lucideChevronDown" aria-hidden="true" />
+                      </button>
+                    } @else {
+                      <span class="text-muted-foreground">-</span>
+                    }
+
+                    <z-dropdown-menu-content #taskMenu class="w-40">
+                      @if (canEdit(task)) {
+                        <z-dropdown-menu-item (click)="openEdit(task)">
+                          Editar
+                        </z-dropdown-menu-item>
+                      }
+                    </z-dropdown-menu-content>
                   </td>
                 </tr>
               }
@@ -188,21 +220,29 @@
       />
     }
   </div>
-  @if (canCreate()) {
+  @if (canUseForm()) {
     <z-sheet
       #createSheet="zSheet"
-      [zVisible]="createOpen()"
+      [zVisible]="editorOpen()"
       (zVisibleChange)="onCreateVisibleChange($event, createSheet)"
       [zSide]="isMobile() ? 'bottom' : 'right'"
     >
       <z-sheet-header>
-        <z-sheet-title>Crear tarea</z-sheet-title>
-        <z-sheet-description> Completa los datos para crear una tarea. </z-sheet-description>
+        <z-sheet-title>
+          {{ selectedTask() ? 'Editar tarea' : 'Crear tarea' }}
+        </z-sheet-title>
+        <z-sheet-description>
+          {{
+            selectedTask()
+              ? 'Actualiza los datos de la tarea.'
+              : 'Completa los datos para crear una tarea'
+          }}
+        </z-sheet-description>
       </z-sheet-header>
 
       <div class="px-6 pb-6">
-        @if (createOpen()) {
-          <app-task-form (saved)="onTaskSaved()" />
+        @if (editorOpen()) {
+          <app-task-form [task]="selectedTask()" (saved)="onTaskSaved()" />
         }
       </div>
     </z-sheet>

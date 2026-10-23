@@ -1,13 +1,13 @@
 import { TestBed } from '@angular/core/testing';
 import { vi } from 'vitest';
 import { AuthenticatedApiClient } from '@/core/http/authenticated-api-client';
-import type { CreateTaskInput, TaskListResponse } from '../domain/task-model';
+import type { CreateTaskInput, TaskListResponse, UpdateTaskInput } from '../domain/task-model';
 import { TASK_QUERY_DEFAULTS, type TaskQueryState } from '../domain/task-query';
 import { TasksApi } from './tasks-api';
 
 describe('TasksApi', () => {
   let service: TasksApi;
-  const client = { get: vi.fn(), post: vi.fn() };
+  const client = { get: vi.fn(), post: vi.fn(), patch: vi.fn() };
   const response: TaskListResponse = {
     data: [
       {
@@ -27,6 +27,7 @@ describe('TasksApi', () => {
   beforeEach(() => {
     client.get.mockReset();
     client.post.mockReset();
+    client.patch.mockReset();
     TestBed.configureTestingModule({
       providers: [{ provide: AuthenticatedApiClient, useValue: client }],
     });
@@ -126,6 +127,66 @@ describe('TasksApi', () => {
       expect(client.post).toHaveBeenCalledTimes(1);
       expect(client.post).toHaveBeenCalledWith('/tasks', input);
       expect(client.get).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('update', () => {
+    it('patches the selected task with supported fields and returns the updated resource', async () => {
+      const input: UpdateTaskInput = {
+        title: 'Updated report',
+        description: 'Review the revised quarterly results',
+        status: 'completed',
+        dueDate: '2026-10-28',
+      };
+      const updated = { ...response.data[0], ...input };
+      client.patch.mockResolvedValue(updated);
+
+      await expect(service.update('example-task-id', input)).resolves.toBe(updated);
+      expect(client.patch).toHaveBeenCalledTimes(1);
+      expect(client.patch).toHaveBeenCalledWith('/tasks/example-task-id', input);
+      expect(client.get).not.toHaveBeenCalled();
+      expect(client.post).not.toHaveBeenCalled();
+    });
+
+    it('preserves explicit nulls when clearing description and due date', async () => {
+      const input: UpdateTaskInput = { description: null, dueDate: null };
+      const updated = { ...response.data[0], description: null, dueDate: null };
+      client.patch.mockResolvedValue(updated);
+
+      await expect(service.update('example-task-id', input)).resolves.toBe(updated);
+      expect(client.patch).toHaveBeenCalledTimes(1);
+      expect(client.patch).toHaveBeenCalledWith('/tasks/example-task-id', {
+        description: null,
+        dueDate: null,
+      });
+      expect(client.get).not.toHaveBeenCalled();
+      expect(client.post).not.toHaveBeenCalled();
+    });
+
+    it('preserves omitted fields in a partial update without adding defaults or ownership', async () => {
+      const input: UpdateTaskInput = { status: 'in_progress' };
+      const updated = { ...response.data[0], status: 'in_progress' };
+      client.patch.mockResolvedValue(updated);
+
+      await expect(service.update('example-task-id', input)).resolves.toBe(updated);
+      expect(client.patch).toHaveBeenCalledTimes(1);
+      expect(client.patch).toHaveBeenCalledWith('/tasks/example-task-id', {
+        status: 'in_progress',
+      });
+      expect(client.get).not.toHaveBeenCalled();
+      expect(client.post).not.toHaveBeenCalled();
+    });
+
+    it('propagates an update failure unchanged without issuing other requests', async () => {
+      const input: UpdateTaskInput = { title: 'Updated report' };
+      const failure = new Error('Unable to update task');
+      client.patch.mockRejectedValue(failure);
+
+      await expect(service.update('example-task-id', input)).rejects.toBe(failure);
+      expect(client.patch).toHaveBeenCalledTimes(1);
+      expect(client.patch).toHaveBeenCalledWith('/tasks/example-task-id', input);
+      expect(client.get).not.toHaveBeenCalled();
+      expect(client.post).not.toHaveBeenCalled();
     });
   });
 });

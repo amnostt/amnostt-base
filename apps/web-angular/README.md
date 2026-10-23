@@ -1,6 +1,6 @@
 # Angular experimental app
 
-`apps/web-angular` is an independent, experimental Angular SPA alongside the React application. It implements login, session restoration, logout, permission-aware navigation, and task listing and creation. Task editing, deletion, and user registration remain pending.
+`apps/web-angular` is an independent, experimental Angular SPA alongside the React application. It implements login, session restoration, logout, permission-aware navigation, and task listing, creation and editing. Task deletion and user registration remain pending.
 
 ## Run and verify
 
@@ -40,9 +40,11 @@ The protected `/tasks` route lists authorized tasks with loading, empty, error a
 
 Creation is available with `tasks:create:own` or `tasks:create:any`, independently of role names. The backend still authorizes every request and determines ownership. A single reactive form opens in the official Zard Sheet: bottom on mobile, right on desktop. It submits a trimmed title, optional description and calendar date, and the selected status; title and description limits remain 120 and 2,000 characters.
 
-- Closing a changed draft through the corner button, Escape or backdrop opens the official AlertDialog. Continuing editing retains the same form and values; discarding closes without saving or refreshing, and reopening starts empty. Returning all values to their defaults allows a clean close.
+Editing is available with `tasks:update:any`, or with `tasks:update:own` when the row's `ownerId` matches the current user. The Actions dropdown and each row's Context Menu share the same Edit option, permission check and handler. Editing reuses the creation Sheet and form, prefilled from the selected list-row snapshot; it adds neither an edit URL nor a detail request. PATCH sends explicit `null` to clear description or due date, while creation still omits empty optional fields.
+
+- Closing a changed draft through the corner button, Escape or backdrop opens the official AlertDialog. Continuing editing retains the same form and values; discarding closes without saving or refreshing. Reopening creation starts empty, while reopening an edited row uses its listed values. Returning all values to their initial state allows a clean close in either mode.
 - Saving blocks all three close routes and duplicate submissions. Success closes the Sheet and refreshes the current query once. Failure preserves entered values and permits retry; a late result from a replaced session cannot publish success.
-- Component, routing and mocked HTTP integration tests exercise these behaviors, including current-query refresh ordering. The user reported successful browser checks on desktop/mobile; this is separate from automated browser or real-service persistence verification. Editing and deletion are not implemented in Angular yet.
+- Component, routing and mocked HTTP integration tests exercise these behaviors, including current-query refresh ordering. The user reported successful desktop/mobile browser checks for creation and accepted editing after checking it in the browser. These reports do not substitute for automated browser or real-service persistence verification. Task deletion is not implemented in Angular yet.
 
 ## UI components and theme
 

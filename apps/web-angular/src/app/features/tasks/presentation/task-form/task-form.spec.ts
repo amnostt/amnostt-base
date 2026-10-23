@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, signal, viewChild } from '@angular/core';
 import { type ComponentFixture, TestBed } from '@angular/core/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { provideZard } from '@/shared/zard/core/provider/providezard';
@@ -8,9 +8,11 @@ import { TaskForm } from './task-form';
 
 @Component({
   imports: [TaskForm],
-  template: '<app-task-form (saved)="onSaved($event)" />',
+  template: '<app-task-form [task]="task()" (saved)="onSaved($event)" />',
 })
 class TestHost {
+  readonly task = signal<Task | null>(null);
+  readonly form = viewChild.required(TaskForm);
   readonly onSaved = vi.fn();
 }
 
@@ -25,7 +27,7 @@ function deferred<T>() {
 describe('TaskForm creation', () => {
   let fixture: ComponentFixture<TestHost>;
   let page: HTMLElement;
-  const api = { create: vi.fn() };
+  const api = { create: vi.fn(), update: vi.fn() };
   const created: Task = {
     id: 'created-task-id',
     ownerId: 'example-user-id',
@@ -40,6 +42,7 @@ describe('TaskForm creation', () => {
   beforeEach(async () => {
     api.create.mockReset();
     api.create.mockResolvedValue(created);
+    api.update.mockReset();
     await TestBed.configureTestingModule({
       imports: [TestHost],
       providers: [provideZard(), { provide: TasksApi, useValue: api }],
@@ -166,6 +169,262 @@ describe('TaskForm creation', () => {
     fixture.detectChanges();
   }
 
+  describe('existing task', () => {
+    async function loadTask(dueDate: string | null = '2026-10-26'): Promise<Task> {
+      const task: Task = {
+        ...created,
+        id: 'existing-task-id',
+        title: 'Existing report',
+        description: 'Original description',
+        status: 'in_progress',
+        dueDate,
+      };
+      fixture.componentInstance.task.set(task);
+      await settle();
+      return task;
+    }
+
+    function closeState() {
+      return fixture.componentInstance.form().getCloseState();
+    }
+
+    describe('submission', () => {
+      it.each(['2026-10-26', '2024-02-29'])(
+        'updates the selected task with supported fields and calendar date %s, never creating',
+        async (dueDate) => {
+          const task = await loadTask(dueDate);
+          const description = '  Revised\nnotes  ';
+          const updated: Task = {
+            ...task,
+            title: 'Updated report',
+            description,
+            status: 'completed',
+          };
+          api.update.mockResolvedValue(updated);
+          await enterTitle('  Updated report  ');
+          await enterDescription(description);
+          await chooseStatus('completed');
+
+          expect(submitButton().textContent?.trim()).toBe('Guardar cambios');
+          startSubmit();
+          await settle();
+
+          expect(api.update).toHaveBeenCalledExactlyOnceWith(task.id, {
+            title: 'Updated report',
+            description,
+            status: 'completed',
+            dueDate,
+          });
+          expect(api.create).not.toHaveBeenCalled();
+          expect(fixture.componentInstance.onSaved).toHaveBeenCalledExactlyOnceWith(updated);
+        },
+      );
+
+      it('sends explicit nulls to clear the existing description and due date', async () => {
+        const task = await loadTask();
+        const updated = { ...task, description: null, dueDate: null };
+        api.update.mockResolvedValue(updated);
+        await enterDescription('');
+        clearDueDateButton().click();
+        await settle();
+        startSubmit();
+        await settle();
+
+        expect(api.update).toHaveBeenCalledExactlyOnceWith(task.id, {
+          title: task.title,
+          description: null,
+          status: task.status,
+          dueDate: null,
+        });
+        expect(api.create).not.toHaveBeenCalled();
+        expect(fixture.componentInstance.onSaved).toHaveBeenCalledExactlyOnceWith(updated);
+      });
+
+      it('retains the edit draft after failure and retries PATCH without creating', async () => {
+        const task = await loadTask();
+        const updated = { ...task, title: 'Revised draft' };
+        api.update
+          .mockRejectedValueOnce(new Error('Network unavailable'))
+          .mockResolvedValueOnce(updated);
+        await enterTitle('Revised draft');
+        startSubmit();
+        await settle();
+
+        expect(page.querySelector('[role="alert"]')?.textContent?.trim()).toBe(
+          'No pudimos actualizar la tarea. Inténtalo de nuevo.',
+        );
+        expect(titleInput().value).toBe('Revised draft');
+        expect(descriptionInput().value).toBe(task.description);
+        expect(statusTrigger().textContent?.trim()).toBe('En progreso');
+        expect(dueDateTrigger().textContent).toContain(dateLabel(task.dueDate!));
+        expect(closeState()).toEqual({ dirty: true, saving: false });
+        expect(submitButton().disabled).toBe(false);
+        expect(api.create).not.toHaveBeenCalled();
+        expect(fixture.componentInstance.onSaved).not.toHaveBeenCalled();
+
+        startSubmit();
+        await settle();
+
+        expect(api.update).toHaveBeenCalledTimes(2);
+        for (const call of [1, 2]) {
+          expect(api.update).toHaveBeenNthCalledWith(call, task.id, {
+            title: 'Revised draft',
+            description: task.description,
+            status: task.status,
+            dueDate: task.dueDate,
+          });
+        }
+        expect(page.querySelector('[role="alert"]')).toBeNull();
+        expect(api.create).not.toHaveBeenCalled();
+        expect(fixture.componentInstance.onSaved).toHaveBeenCalledExactlyOnceWith(updated);
+      });
+
+      it('locks the edit controls and ignores duplicate submits until PATCH finishes', async () => {
+        const task = await loadTask();
+        const pending = deferred<Task>();
+        api.update.mockReturnValue(pending.promise);
+        startSubmit();
+        await settle();
+
+        try {
+          expect(submitButton().textContent?.trim()).toBe('Guardando…');
+          expect(submitButton().disabled).toBe(true);
+          expect(page.querySelector('form')?.getAttribute('aria-busy')).toBe('true');
+          expect(titleInput().readOnly).toBe(true);
+          expect(descriptionInput().readOnly).toBe(true);
+          expect(statusTrigger().disabled).toBe(true);
+          expect(dueDateTrigger().disabled).toBe(true);
+          expect(clearDueDateButton().disabled).toBe(true);
+          expect(closeState()).toEqual({ dirty: false, saving: true });
+          startSubmit();
+          await settle();
+
+          expect(api.update).toHaveBeenCalledExactlyOnceWith(task.id, {
+            title: task.title,
+            description: task.description,
+            status: task.status,
+            dueDate: task.dueDate,
+          });
+          expect(api.create).not.toHaveBeenCalled();
+          expect(fixture.componentInstance.onSaved).not.toHaveBeenCalled();
+        } finally {
+          pending.resolve(task);
+          await settle();
+        }
+
+        expect(closeState().saving).toBe(false);
+        expect(submitButton().disabled).toBe(false);
+        expect(submitButton().textContent?.trim()).toBe('Guardar cambios');
+        expect(fixture.componentInstance.onSaved).toHaveBeenCalledExactlyOnceWith(task);
+      });
+
+      it.each(['', '   '])('rejects an invalid edit title %j without a mutation', async (title) => {
+        await loadTask();
+        await enterTitle(title);
+        startSubmit();
+        await settle();
+
+        expect(page.querySelector('#task-title-error')?.textContent?.trim()).toBe(
+          'Ingresa un título.',
+        );
+        expect(api.update).not.toHaveBeenCalled();
+        expect(api.create).not.toHaveBeenCalled();
+        expect(fixture.componentInstance.onSaved).not.toHaveBeenCalled();
+      });
+
+      it('retains invalid edit values and rejects excessive field lengths without a mutation', async () => {
+        await loadTask();
+        await enterTitle('t'.repeat(121));
+        await enterDescription('d'.repeat(2001));
+        startSubmit();
+        await settle();
+
+        expect(page.querySelector('#task-title-error')?.textContent?.trim()).toBe(
+          'El título debe tener como máximo 120 caracteres.',
+        );
+        expect(page.querySelector('#task-description-error')?.textContent?.trim()).toBe(
+          'La descripción debe tener como máximo 2000 caracteres.',
+        );
+        expect(titleInput().value).toBe('t'.repeat(121));
+        expect(descriptionInput().value).toBe('d'.repeat(2001));
+        expect(api.update).not.toHaveBeenCalled();
+        expect(api.create).not.toHaveBeenCalled();
+        expect(fixture.componentInstance.onSaved).not.toHaveBeenCalled();
+      });
+    });
+
+    it.each(['2026-10-26', '2024-02-29', null])(
+      'prefills supported fields and calendar date %s without saving or marking changes',
+      async (dueDate) => {
+        const task = await loadTask(dueDate);
+
+        expect(titleInput().value).toBe(task.title);
+        expect(descriptionInput().value).toBe(task.description);
+        expect(statusTrigger().textContent?.trim()).toBe('En progreso');
+        expect(dueDateTrigger().textContent).toContain(
+          dueDate ? dateLabel(dueDate) : 'Sin vencimiento',
+        );
+        expect(closeState()).toEqual({ dirty: false, saving: false });
+        expect(page.querySelectorAll('[role="alert"]')).toHaveLength(0);
+        expect(api.create).not.toHaveBeenCalled();
+        expect(fixture.componentInstance.onSaved).not.toHaveBeenCalled();
+      },
+    );
+
+    it('maps nullable description and due date to clean empty controls', async () => {
+      const task = await loadTask(null);
+      fixture.componentInstance.task.set({ ...task, description: null });
+      await settle();
+
+      expect(titleInput().value).toBe(task.title);
+      expect(descriptionInput().value).toBe('');
+      expect(statusTrigger().textContent?.trim()).toBe('En progreso');
+      expect(dueDateTrigger().textContent).toContain('Sin vencimiento');
+      expect(closeState()).toEqual({ dirty: false, saving: false });
+      expect(api.create).not.toHaveBeenCalled();
+      expect(fixture.componentInstance.onSaved).not.toHaveBeenCalled();
+    });
+
+    it.each(['title', 'description'] as const)(
+      'becomes dirty after changing %s and clean after restoring its original value',
+      async (field) => {
+        const task = await loadTask();
+        const enterValue = field === 'title' ? enterTitle : enterDescription;
+        await enterValue('Changed draft');
+        expect(closeState()).toEqual({ dirty: true, saving: false });
+
+        await enterValue(field === 'title' ? task.title : task.description!);
+        expect(closeState()).toEqual({ dirty: false, saving: false });
+        expect(api.create).not.toHaveBeenCalled();
+        expect(fixture.componentInstance.onSaved).not.toHaveBeenCalled();
+      },
+    );
+
+    it('compares selected status with the original task rather than the creation default', async () => {
+      await loadTask();
+      await chooseStatus('pending');
+      expect(closeState()).toEqual({ dirty: true, saving: false });
+
+      await chooseStatus('in_progress');
+      expect(closeState()).toEqual({ dirty: false, saving: false });
+      expect(api.create).not.toHaveBeenCalled();
+      expect(fixture.componentInstance.onSaved).not.toHaveBeenCalled();
+    });
+
+    it('becomes clean after reselecting the original calendar day despite a different Date instance', async () => {
+      await loadTask();
+      clearDueDateButton().click();
+      await settle();
+      expect(closeState()).toEqual({ dirty: true, saving: false });
+
+      await chooseDueDate('2026-10-26');
+      expect(dueDateTrigger().textContent).toContain(dateLabel('2026-10-26'));
+      expect(closeState()).toEqual({ dirty: false, saving: false });
+      expect(api.create).not.toHaveBeenCalled();
+      expect(fixture.componentInstance.onSaved).not.toHaveBeenCalled();
+    });
+  });
+
   it('renders a labelled empty title without showing premature validation errors', () => {
     expect(page.querySelector('label[for="task-title"]')?.textContent?.trim()).toBe('Título');
     expect(titleInput().value).toBe('');
@@ -217,6 +476,7 @@ describe('TaskForm creation', () => {
     await settle();
 
     expect(api.create).toHaveBeenCalledExactlyOnceWith({ title, status: 'pending' });
+    expect(api.update).not.toHaveBeenCalled();
     expect(page.querySelector('#task-title-error')).toBeNull();
     expect(fixture.componentInstance.onSaved).toHaveBeenCalledExactlyOnceWith(task);
     expect(page.querySelector('form')?.getAttribute('aria-busy')).toBe('false');

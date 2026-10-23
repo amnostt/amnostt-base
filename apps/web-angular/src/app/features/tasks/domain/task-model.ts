@@ -20,4 +20,11 @@ export interface CreateTaskInput {
   dueDate?: string;
 }
 
+export interface UpdateTaskInput {
+  title?: string;
+  description?: string | null;
+  status?: TaskStatus;
+  dueDate?: string | null;
+}
+
 export type TaskListResponse = PaginatedResponse<Task>;

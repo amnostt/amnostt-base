@@ -96,6 +96,10 @@
   }
 
   <button z-button type="submit" [zLoading]="saving()" [zDisabled]="saving()">
-    {{ saving() ? 'Creando…' : 'Crear tarea' }}
+    @if (task()) {
+      {{ saving() ? 'Guardando…' : 'Guardar cambios' }}
+    } @else {
+      {{ saving() ? 'Creando…' : 'Crear tarea' }}
+    }
   </button>
 </form>

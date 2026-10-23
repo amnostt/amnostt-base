@@ -1,4 +1,12 @@
-import { Component, DestroyRef, inject, type OnInit, signal, computed, viewChild } from '@angular/core';
+import {
+  Component,
+  DestroyRef,
+  inject,
+  type OnInit,
+  signal,
+  computed,
+  viewChild,
+} from '@angular/core';
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -19,9 +27,13 @@ import { ZardSheetImports } from '@/shared/zard/components/sheet';
 import { ZardSheetComponent } from '@/shared/zard/components/sheet';
 import { ZardAlertDialogService } from '@/shared/zard/components/alert-dialog';
 import { ZardAlertDialogRef } from '@/shared/zard/components/alert-dialog';
+import { ZardDropdownService } from '@/shared/zard/components/dropdown';
+import { ZardContextMenuImports } from '@/shared/zard/components/context-menu';
 
 import type { CalendarValue } from '@/shared/zard/components/calendar';
 import { TaskForm } from '../task-form/task-form';
+import { Task } from '../../domain/task-model';
+import { canUpdateTask } from '../../domain/task-permissions';
 
 import {
   parseTaskQuery,
@@ -52,6 +64,7 @@ type TaskListState =
     ZardTableImports,
     ZardDropdownImports,
     ZardPaginationImports,
+    ZardContextMenuImports,
     ZardSheetImports,
     TaskForm,
     NgIcon,
@@ -80,15 +93,50 @@ export class TaskList implements OnInit {
   private readonly alertDialog = inject(ZardAlertDialogService);
   private discardDialog: ZardAlertDialogRef<void> | null = null;
 
+  private readonly dropdown = inject(ZardDropdownService);
+
   private readonly searchChanges = new Subject<string | null>();
   private requestRevision = 0;
 
-  protected readonly createOpen = signal(false);
+  protected readonly editorOpen = signal(false);
+
+  protected readonly selectedTask = signal<Task | null>(null);
+
+  protected readonly canUseForm = computed(() => {
+    const state = this.session.state();
+    if (state.status !== 'authenticated') return false;
+
+    const task = this.selectedTask();
+
+    return task ? canUpdateTask(state.user, task) : canCreateTasks(state.user);
+  });
+
   protected readonly canCreate = computed(() => {
     const state = this.session.state();
 
     return state.status === 'authenticated' && canCreateTasks(state.user);
   });
+
+  protected canEdit(task: Task): boolean {
+    const state = this.session.state();
+
+    return state.status === 'authenticated' && canUpdateTask(state.user, task);
+  }
+
+  protected openCreate(): void {
+    if (!this.canCreate()) return;
+
+    this.selectedTask.set(null);
+    this.editorOpen.set(true);
+  }
+
+  protected openEdit(task: Task): void {
+    if (!this.canEdit(task)) return;
+
+    this.dropdown.close();
+    this.selectedTask.set(task);
+    this.editorOpen.set(true);
+  }
 
   protected readonly isMobile = toSignal(
     this.breakpoints.observe('(max-width: 767.98px)').pipe(map((state) => state.matches)),
@@ -144,7 +192,7 @@ export class TaskList implements OnInit {
     const state = this.createForm()?.getCloseState();
 
     if (!state || (!state.saving && !state.dirty)) {
-      this.createOpen.set(false);
+      this.editorOpen.set(false);
       return;
     }
 
@@ -164,13 +212,13 @@ export class TaskList implements OnInit {
       },
       zOnOk: () => {
         this.discardDialog = null;
-        this.createOpen.set(false);
+        this.editorOpen.set(false);
       },
     });
   }
 
   protected onTaskSaved(): void {
-    this.createOpen.set(false);
+    this.editorOpen.set(false);
     void this.load();
   }
 
@@ -283,7 +331,7 @@ export class TaskList implements OnInit {
   ngOnInit(): void {
     this.destroyRef.onDestroy(() => {
       this.requestRevision++;
-      this.discardDialog?.close()
+      this.discardDialog?.close();
     });
 
     this.searchChanges
