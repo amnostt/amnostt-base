@@ -52,7 +52,30 @@ Deletion is available with `tasks:delete:any`, or with `tasks:delete:own` for an
 - Permissions are rechecked when requesting and confirming deletion. Replaced-session results cannot publish success/error or refresh the list; an outstanding request finishing after component destruction cannot refresh it either. The backend remains the authorization authority.
 - Rendered menu tests and real-session/mocked-HTTP regressions cover cancellation, ownership, duplicate prevention, errors, query ordering, replacement sessions and destruction. These tests do not delete real stored tasks.
 
-The user reported successful desktop/mobile browser checks for creation and accepted editing and deletion after checking them in the browser. These reports do not substitute for automated browser or real-service persistence verification. Workspace-wide integration checks remain a separate completion step.
+The user reported successful desktop/mobile browser checks for creation and accepted editing and deletion after checking them in the browser. These reports do not substitute for automated browser or real-service persistence verification.
+
+### Integrated verification
+
+On 2026-10-26, the automated integration gate passed against Tasks commit `be7e78e` without application-source changes:
+
+| Scope         | Commands from the workspace root                                                         | Observed result                                                                                        |
+| ------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Angular       | `pnpm lint:web-angular`, `pnpm test:web-angular --watch=false`, `pnpm build:web-angular` | Lint and build passed; 419 tests across 27 files passed.                                               |
+| React and API | `pnpm lint`, `pnpm test`, `pnpm build`                                                   | Lint and both builds passed; API 143 tests across 22 suites and React 98 tests across 15 files passed. |
+| Patch hygiene | `git diff --check`                                                                       | Passed.                                                                                                |
+
+The Angular production bundle remains 777.57 kB, exceeding its 500 kB warning budget by 277.57 kB; the build succeeds without suppressing the warning. Root commands do not include Angular, so both command groups are necessary.
+
+The installed pnpm runner performed an unexpected automatic dependency verification on the first lint command, reporting the lockfile up to date and no package additions. Subsequent commands disabled pre-run dependency verification and automatic package-manager switching. Tracked files remained unchanged; normal ignored build outputs and a React Vitest cache were written locally.
+
+On the same date, the user confirmed integrated browser acceptance with existing seed users for:
+
+- Direct `/tasks` navigation and permission-aware access/actions for the accounts checked.
+- Session-expiry and access-error handling, kept separate from successful authenticated CRUD checks.
+- Keyboard operation of the delivered menus, Sheet and confirmation dialogs.
+- Desktop/mobile behavior of the delivered Tasks flow.
+
+This acceptance is user-reported, separate from the unit/component tests covering route/permission decisions, request failures, keyboard menu interactions and responsive Sheet state using mocked services. No automated browser suite or database-backed API E2E was run for this gate; no database reset or seed was performed.
 
 ## UI components and theme
 
