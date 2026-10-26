@@ -5,7 +5,7 @@
       "zard-ui": {
         "type": "local",
         "command": ["pnpm", "dlx", "zard-mcp@1.1.0"],
-        "cwd": "apps/web-angular"
+        "cwd": "apps/web"
       }
     }
   },

@@ -4,14 +4,13 @@ Este documento describe el workspace y el comportamiento respaldado por código 
 
 ## Workspace
 
-| Área                                        | Responsabilidad                                                                                                                   |
-| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/api` (`@amnostt/api`)                 | API NestJS, autenticación, autorización, Tasks, health checks y acceso a PostgreSQL mediante Prisma.                              |
-| `apps/web` (`@amnostt/web`)                 | Interfaz React/Vite, sesión de usuario, rutas protegidas y experiencia de Tasks.                                                  |
-| `apps/web-angular` (`@amnostt/web-angular`) | SPA Angular experimental independiente; sesión, navegación protegida, listado, creación, edición y eliminación de Tasks con Zard. |
-| `packages/*`                                | Reservado; actualmente vacío.                                                                                                     |
+| Área                        | Responsabilidad                                                                                           |
+| --------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `apps/api` (`@amnostt/api`) | API NestJS, autenticación, autorización, Tasks, health checks y acceso a PostgreSQL mediante Prisma.      |
+| `apps/web` (`@amnostt/web`) | SPA Angular con Zard UI; sesión, navegación protegida, listado, creación, edición y eliminación de Tasks. |
+| `packages/*`                | Reservado; actualmente vacío.                                                                             |
 
-La API aplica el prefijo `/api`. La web React usa `VITE_API_URL` o `http://localhost:3000/api`. Angular se inicia independientemente en `http://localhost:5174` y su proxy de desarrollo dirige `/api/**` a la API local. Los flujos React se describen abajo; el alcance Angular se distingue en su sección final. El esquema y migraciones Prisma viven en `apps/api/prisma`; el cliente generado vive en `apps/api/src/generated/prisma` y no se edita manualmente.
+La API aplica el prefijo `/api`. La web se inicia en `http://localhost:5174` con `pnpm dev:web` o junto a la API con `pnpm dev`; su proxy de desarrollo dirige `/api/**` a `http://localhost:3000`. La web usa rutas relativas y no requiere variables `VITE_*` ni un archivo `.env` propio. El proxy no configura producción: el despliegue debe dirigir `/api` a la API. El esquema y migraciones Prisma viven en `apps/api/prisma`; el cliente generado vive en `apps/api/src/generated/prisma` y no se edita manualmente.
 
 ## Límites de la API
 
@@ -28,11 +27,11 @@ El backend es la autoridad para identidad, estado de cuenta, sesiones, roles y p
 
 ### Flujo web
 
-1. `main.tsx` crea el cliente HTTP, `HttpAuthRepository` y `SessionStore`, y entrega el store mediante `SessionProvider`.
-2. El provider comparte el store con los componentes; `useSession` expone snapshot y acciones mediante selectores.
-3. `SessionStore` coordina bootstrap, registro, login, cambio de contraseña, logout y solicitudes autenticadas. El access token vive en memoria; solicitudes no autorizadas comparten el refresh en curso.
-4. `HttpAuthRepository` traduce operaciones del dominio a endpoints HTTP. El backend establece o rota la cookie de refresh; la web no persiste el access token en almacenamiento del navegador.
-5. `AuthenticatedShell` presenta rutas autenticadas y puede ocultar navegación según permisos, sin reemplazar la comprobación del servidor.
+1. `apps/web/src/main.ts` inicia la aplicación; `app.config.ts` registra router, HTTP, Zard y `SessionStore.bootstrap()` mediante `provideAppInitializer`.
+2. `SessionStore` publica estado de solo lectura mediante señales y coordina login, restauración y logout. El access token permanece privado y en memoria; los consumidores de bootstrap comparten la restauración pendiente.
+3. `AuthApi.restore()` solicita refresh mediante cookie y después consulta el usuario actual. La inicialización espera a que termine; un fallo deja la sesión no autenticada. No hay refresh automático de cada solicitud autenticada fallida.
+4. `AuthenticatedApiClient` utiliza el control de sesión del store para GET, POST, PATCH y DELETE. Envía credenciales y el access token y rechaza resultados de una sesión sustituida.
+5. `authGuard` protege `AppShell` y sus rutas hijas; `permissionGuard` protege Tasks. La shell oculta navegación sin permiso, sin reemplazar la comprobación del servidor. Registro y cambio de contraseña existen en la API, pero no tienen una interfaz conectada en la web.
 
 ### Contrato y seguridad
 
@@ -55,9 +54,9 @@ Tasks es el recurso CRUD de referencia, no una abstracción universal para todos
 
 ### Flujo web y separación existente
 
-La ruta protegida monta `TaskListPage` dentro de `AuthenticatedShell`. `TaskListPage` coordina actualmente listado, consulta URL, navegación, lectura para edición, creación/actualización, eliminación, confirmación y estados de carga/error. El listado accede mediante `TaskRepository`; crear, actualizar y eliminar son funciones de acceso del mismo módulo. No se debe describir este diseño como si Tasks tuviera la coordinación desacoplada que sí tiene Auth.
+La ruta protegida `/tasks` monta `TaskList` dentro de `AppShell`. La pantalla coordina listado, consulta URL, creación/actualización, eliminación, confirmación y estados de carga/error mediante `TasksApi` y `AuthenticatedApiClient`. Los modelos, permisos y serialización de consultas están en `features/tasks/domain`; el acceso HTTP está en `infrastructure` y los componentes en `presentation`.
 
-Los filtros se serializan en la URL. El listado puede retrasar la búsqueda, cancela solicitudes anteriores y presenta estados comprobados por las pruebas. La edición/creación usa rutas y un Sheet; eliminar requiere confirmación. La shell puede ocultar Tasks si el usuario no tiene permiso de lectura, pero el API vuelve a autorizar cada petición.
+Los filtros, búsqueda, orden y paginación se serializan en la URL. La creación y edición comparten `TaskForm` y un Sheet, sin rutas adicionales; la edición usa la fila del listado sin solicitar detalle. Eliminar requiere confirmación mediante AlertDialog. Las respuestas obsoletas no deben publicar resultados. La shell puede ocultar Tasks si el usuario no tiene permiso de lectura, pero la API vuelve a autorizar cada petición.
 
 ### API y propiedad
 
@@ -73,7 +72,7 @@ Rutas autenticadas: `GET /api/tasks`, `GET /api/tasks/:id`, `POST /api/tasks`, `
 
 ## Extensión y límites
 
-- Para extender un flujo, sigue primero sus límites existentes: Auth separa modelos, repositorio de dominio e implementación HTTP, store, selectores y provider; Tasks concentra coordinación de pantalla en `TaskListPage`.
+- Para extender un flujo, sigue primero sus límites existentes: Auth separa modelos, `AuthApi`, `SessionStore` y presentación; Tasks separa dominio, `TasksApi` y presentación, con la coordinación de pantalla en `TaskList` y el formulario en `TaskForm`.
 - Las reglas de permisos y propiedad de Tasks son específicas de este recurso. Extraerlas a una abstracción compartida requiere evidencia de otro recurso y una decisión explícita.
 - Reutiliza primitivas visuales existentes y conserva carga, vacío, error, permisos, navegación, formularios y confirmación según sus pruebas. Registra componentes faltantes como brechas, no como capacidades.
 - Administración de usuarios/roles/permisos, Profile, recuperación por correo y paquetes compartidos no están implementados.
@@ -81,9 +80,9 @@ Rutas autenticadas: `GET /api/tasks`, `GET /api/tasks/:id`, `POST /api/tasks`, `
 
 Para bootstrap y comandos del workspace consulta [`README.md`](../README.md); para reglas de contribución consulta [`AGENTS.md`](../AGENTS.md).
 
-## App Angular experimental
+## Detalles de la aplicación web
 
-La entrada de la SPA vive en `apps/web-angular/src/main.ts`; `app.config.ts` configura sus proveedores y `app.routes.ts` sus rutas. La shell protegida y sus componentes usan Zard; los componentes copiados viven en `src/app/shared/zard/` y `components.json` registra su configuración.
+La entrada de la SPA vive en `apps/web/src/main.ts`; `app.config.ts` configura sus proveedores y `app.routes.ts` sus rutas. La shell protegida y sus componentes usan Zard; los componentes copiados viven en `apps/web/src/app/shared/zard/` y `apps/web/components.json` registra su configuración.
 
 - `SessionStore` mantiene el token en memoria y coordina login, restauración y logout. `AuthenticatedApiClient` reutiliza su control de sesión para GET, POST, PATCH y DELETE; rechaza respuestas de una sesión sustituida. Los guards y las acciones visibles usan permisos, sin sustituir autorización del backend.
 - `TaskList` conserva búsqueda, filtros, orden y paginación en la URL y obtiene datos mediante `TasksApi`. Creación y edición comparten un único `TaskForm` y Sheet inferior en móvil o lateral derecho en escritorio, sin rutas adicionales. El Dropdown de Acciones y el Context Menu de cada fila comparten Editar y Eliminar, con permisos y propiedad comprobados por acción; el formulario se precarga con los datos del listado, sin una petición de detalle adicional.
@@ -91,4 +90,4 @@ La entrada de la SPA vive en `apps/web-angular/src/main.ts`; `app.config.ts` con
 - Eliminar exige `tasks:delete:any` o `tasks:delete:own` sobre una tarea propia, con nueva comprobación de la sesión al abrir y confirmar. El AlertDialog se cierra al aceptar y envía DELETE sin cuerpo; la API responde 204. El listado muestra progreso, bloquea eliminaciones duplicadas y conserva la fila hasta el éxito; entonces recarga la consulta vigente. Un fallo conserva la fila y permite volver a confirmar. Una respuesta de una sesión sustituida o posterior a la destrucción no publica resultados ni recarga el listado.
 - El registro de usuarios en Angular sigue pendiente. Las pruebas usan HTTP simulado; no prueban persistencia real ni E2E en navegador. El usuario informó la comprobación manual de creación, edición y eliminación; estas confirmaciones no equivalen a verificación automatizada en navegador o de persistencia real.
 
-Consulta el detalle en la [guía de Angular](../apps/web-angular/README.md). Sus comprobaciones son `pnpm lint:web-angular`, `pnpm test:web-angular --watch=false` y `pnpm build:web-angular`. La configuración habitual de `pnpm lint`, `pnpm test` y `pnpm build` cubre React y API, no esta app experimental.
+Consulta el detalle en la [guía de la web](../apps/web/README.md). Los comandos raíz `pnpm lint`, `pnpm test` y `pnpm build` cubren Angular y API; usa `CI=true pnpm test` para una ejecución automatizada sin watch. Las pruebas web aisladas se ejecutan con `pnpm --filter @amnostt/web test --watch=false`.

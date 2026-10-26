@@ -1,25 +1,21 @@
 {
-  "$schema": "https://ui.shadcn.com/schema.json",
-  "style": "base-vega",
-  "rsc": false,
-  "tsx": true,
-  "tailwind": {
-    "config": "",
-    "css": "src/index.css",
-    "baseColor": "neutral",
-    "cssVariables": true,
-    "prefix": ""
-  },
-  "iconLibrary": "lucide",
+  "$schema": "https://zardui.com/schema.json",
+  "style": "css",
+  "icons": "lucide",
   "rtl": false,
-  "aliases": {
-    "components": "@/components",
-    "utils": "@/lib/utils",
-    "ui": "@/components/ui",
-    "lib": "@/lib",
-    "hooks": "@/hooks"
+  "projectType": "angular",
+  "appConfigFile": "src/app/app.config.ts",
+  "packageManager": "pnpm",
+  "tailwind": {
+    "css": "src/styles.css",
+    "baseColor": "slate"
   },
-  "menuColor": "default",
-  "menuAccent": "subtle",
-  "registries": {}
+  "baseUrl": "src/app",
+  "aliases": {
+    "components": "@/shared/zard/components",
+    "utils": "@/shared/zard/utils",
+    "core": "@/shared/zard/core",
+    "services": "@/shared/zard/services",
+    "blocks": "@/shared/zard/blocks"
+  }
 }

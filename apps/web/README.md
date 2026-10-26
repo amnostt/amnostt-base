@@ -1,26 +1,26 @@
-# Angular experimental app
+# Angular web application
 
-`apps/web-angular` is an independent, experimental Angular SPA alongside the React application. It implements login, session restoration, logout, permission-aware navigation, and task listing, creation, editing and deletion. User registration remains pending.
+`apps/web` is the workspace's Angular SPA, published locally as `@amnostt/web`. It implements login, session restoration, logout, permission-aware navigation, and task listing, creation, editing and deletion. User registration and password changes remain API-only capabilities without connected web interfaces.
 
 ## Run and verify
 
 From the workspace root:
 
 ```bash
-pnpm dev:web-angular
+pnpm dev:web
 ```
 
 Open `http://localhost:5174`. Run the app's unit tests and production build with:
 
 ```bash
-pnpm test:web-angular
-pnpm build:web-angular
-pnpm lint:web-angular
+pnpm --filter @amnostt/web test --watch=false
+pnpm --filter @amnostt/web build
+pnpm --filter @amnostt/web lint
 ```
 
-The Angular CLI test target uses Vitest. For a single run without watch mode, use `pnpm --filter @amnostt/web-angular exec ng test --watch=false` from the workspace root. End-to-end testing is not configured for this app.
+The Angular CLI test target uses Vitest. The test command above runs once without watch mode. Root `pnpm lint`, `pnpm test`, and `pnpm build` include this app and the API; use `CI=true pnpm test` for a non-watch automated gate. End-to-end testing is not configured for this app.
 
-Angular ESLint checks TypeScript and templates. Prettier owns formatting; `eslint-config-prettier` disables conflicting formatting rules. Naming and type-style exceptions apply only to the copied Zard sources, not application components. Root `pnpm lint` still checks React and the API only.
+Angular ESLint checks TypeScript and templates. Prettier owns formatting; `eslint-config-prettier` disables conflicting formatting rules. Naming and type-style exceptions apply only to the copied Zard sources, not application components.
 
 ## Authentication foundation
 
@@ -32,7 +32,7 @@ The sidebar's logout action calls the cookie-backed `POST /api/auth/logout` endp
 
 `src/app/features/auth/presentation/login/` contains the Spanish login component adapted from Zard's `login-02`, available publicly at `/login` outside the sidebar shell. It preserves the two-column desktop layout, hides the demonstration cover on smaller screens, and provides labelled credential inputs and local validation. GitHub, registration, and password recovery remain visible but disabled demonstration actions. Submission calls `SessionStore.login()`, derives loading from its state, clears the password after authenticated success, and navigates to `/` with history replacement. A rejected login stays on the form with a safe Spanish error. Component and routing tests exercise these behaviors through the rendered form and a mocked HTTP backend, including duplicate-submission prevention, retry, and entry into the guarded shell. The user accepted the login layout and reported a successful local login-to-sidebar-to-logout flow after starting the database. This manual confirmation is separate from the mocked tests; automated browser cookie and server-revocation checks have not been performed.
 
-The development server forwards `/api/**` through `src/proxy.conf.json` to the local API at `http://localhost:3000`; restart `ng serve` after changing the proxy. This proxy does not configure production deployment. Follow the local tracker `odd/tasks/angular-auth-session.md` from the repository root for the current slice; `odd/` is ignored by Git and mirrored in Engram.
+The development server forwards `/api/**` through `src/proxy.conf.json` to the local API at `http://localhost:3000`; restart `ng serve` after changing the proxy. The web app does not require a `.env` file. This proxy does not configure production deployment: route `/api` to the backend in the production host. Historical implementation trackers remain under the ignored `odd/` directory at the repository root; they are not current workspace configuration.
 
 ## Tasks
 
@@ -54,19 +54,9 @@ Deletion is available with `tasks:delete:any`, or with `tasks:delete:own` for an
 
 The user reported successful desktop/mobile browser checks for creation and accepted editing and deletion after checking them in the browser. These reports do not substitute for automated browser or real-service persistence verification.
 
-### Integrated verification
+### Verification scope and previous acceptance
 
-On 2026-10-26, the automated integration gate passed against Tasks commit `be7e78e` without application-source changes:
-
-| Scope         | Commands from the workspace root                                                         | Observed result                                                                                        |
-| ------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| Angular       | `pnpm lint:web-angular`, `pnpm test:web-angular --watch=false`, `pnpm build:web-angular` | Lint and build passed; 419 tests across 27 files passed.                                               |
-| React and API | `pnpm lint`, `pnpm test`, `pnpm build`                                                   | Lint and both builds passed; API 143 tests across 22 suites and React 98 tests across 15 files passed. |
-| Patch hygiene | `git diff --check`                                                                       | Passed.                                                                                                |
-
-The Angular production bundle remains 777.57 kB, exceeding its 500 kB warning budget by 277.57 kB; the build succeeds without suppressing the warning. Root commands do not include Angular, so both command groups are necessary.
-
-The installed pnpm runner performed an unexpected automatic dependency verification on the first lint command, reporting the lockfile up to date and no package additions. Subsequent commands disabled pre-run dependency verification and automatic package-manager switching. Tracked files remained unchanged; normal ignored build outputs and a React Vitest cache were written locally.
+Before workspace consolidation, the integration gate on 2026-10-26 passed against Tasks commit `be7e78e`: Angular lint and build passed, and 419 tests across 27 files passed. The Angular production bundle was 777.57 kB, exceeding its 500 kB warning budget; the build succeeded without suppressing that warning. These historical results are not proof for later changes. Re-run the current commands above, the root gate, and `git diff --check` after modifying the workspace.
 
 On the same date, the user confirmed integrated browser acceptance with existing seed users for:
 
@@ -85,6 +75,6 @@ The shell adapts the complete visual structure of `sidebar-07`: collapsible side
 
 For authenticated visitors, `/`, `/403`, and unmatched URLs render Home, Forbidden, and Not Found inside the same protected shell. Anonymous visitors are redirected to `/login` without rendering the shell. The Home link and sidebar controls work; team selection changes local demonstration state only. Users, teams, plans, projects, and navigation sections use clearly marked fixtures. Unimplemented links and account/project actions remain disabled; logout is the sidebar's only connected session action, with a disabled Spanish pending state while its request runs. Decorative placeholder panels remain on Home for visual evaluation. The displayed 403 page does not enforce role or permission checks.
 
-From `apps/web-angular`, use `pnpm exec ng` for the local Angular CLI. The setup used Zard CLI 1.0.1; to add its button source, use `pnpm dlx zard-cli@1.0.1 add button`. Review generated changes before retaining them, and do not overwrite customized components blindly.
+From `apps/web`, use `pnpm exec ng` for the local Angular CLI. The setup used Zard CLI 1.0.1; to add its button source, use `pnpm dlx zard-cli@1.0.1 add button`. Review generated changes before retaining them, and do not overwrite customized components blindly.
 
-For workspace setup and the React/API checks, see the [workspace README](../../README.md). For implemented system boundaries, see [architecture](../../docs/ARCHITECTURE.md).
+For workspace setup and the Angular/API checks, see the [workspace README](../../README.md). For implemented system boundaries, see [architecture](../../docs/ARCHITECTURE.md).

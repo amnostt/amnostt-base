@@ -16,8 +16,8 @@ Amnostt Base es una base reutilizable para aplicaciones web. Su referencia imple
 
 ## Operating Context
 
-Workspace con pnpm, API NestJS, web React/Vite y PostgreSQL mediante Prisma. También contiene una SPA Angular experimental e independiente para explorar UI; no implementa flujos de producto. Para el estado real de Auth, Tasks, seguridad y sus límites, consulta [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+Workspace con pnpm, API NestJS, web Angular con Zard UI en `apps/web` y PostgreSQL mediante Prisma. La web implementa login, restauración de sesión, logout, navegación protegida y gestión de tareas autorizadas; el backend conserva la autoridad de identidad, permisos y propiedad. Para el estado real de Auth, Tasks, seguridad y sus límites, consulta [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Brand Commitments
 
-El nombre de esta base es Amnostt Base. La documentación técnica usa español profesional neutro; el copy visible de la aplicación permanece en inglés salvo decisión explícita del proyecto derivado.
+El nombre de esta base es Amnostt Base. La documentación general usa español profesional neutro y la guía técnica de la web está en inglés. La interfaz Angular y sus etiquetas de accesibilidad están en español; los proyectos derivados deben decidir explícitamente cualquier cambio de idioma o marca.

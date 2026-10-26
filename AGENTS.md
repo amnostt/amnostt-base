@@ -21,9 +21,9 @@ Si las fuentes discrepan, prevalecen código y pruebas. Registra la discrepancia
   corepack enable
   pnpm install --frozen-lockfile
   ```
-- Copia `.env.example`, `apps/api/.env.example` y `apps/web/.env.example` localmente; no versiones los archivos resultantes.
+- Copia `.env.example` y `apps/api/.env.example` localmente; no versiones los archivos resultantes. La web Angular usa rutas relativas `/api` y el proxy de desarrollo en `apps/web/src/proxy.conf.json`, no un archivo `.env` web.
 - `apps/api/.env.example` no incluye `DATABASE_URL`; configúrala localmente antes de ejecutar Prisma o iniciar la API.
-- Paquetes activos: `@amnostt/api` (`apps/api`) y `@amnostt/web` (`apps/web`). `packages/*` está reservado y vacío.
+- Paquetes activos: `@amnostt/api` (`apps/api`, NestJS) y `@amnostt/web` (`apps/web`, Angular con Zard UI). `packages/*` está reservado y vacío.
 
 Bootstrap reproducible:
 
@@ -39,17 +39,17 @@ pnpm dev
 ## Verificación
 
 - `pnpm lint`: lint de web y API.
-- `pnpm test`: Jest de API y Vitest de web.
+- `pnpm test`: Jest de API y Vitest mediante Angular CLI para web. Usa `CI=true pnpm test` en automatización; para web sin watch, `pnpm --filter @amnostt/web test --watch=false`.
 - `pnpm test:e2e`: E2E de API, separado porque requiere PostgreSQL y `DATABASE_URL`.
-- `pnpm build`: `tsc -b`/Vite para web y compilación Nest de API; no hay typecheck independiente.
+- `pnpm build`: compilación Angular para web y Nest para API; no hay typecheck independiente.
 - `pnpm --filter @amnostt/api format`: formatter mutante de fuentes y pruebas de API.
-- `pnpm --filter @amnostt/web format:check`: comprobación Prettier no mutante de web.
+- `pnpm --filter @amnostt/web exec prettier --check <rutas>`: comprobación Prettier no mutante de las rutas indicadas; no existe un script web `format:check`.
 
 Gate habitual:
 
 ```bash
 pnpm lint
-pnpm test
+CI=true pnpm test
 pnpm build
 git diff --check
 ```
@@ -67,12 +67,12 @@ Normaliza solo Markdown y configuración para los que el repositorio ofrece sopo
 
 ## Zard para Angular
 
-- La skill oficial `zard` está instalada a nivel de proyecto en `.agents/skills/zard/`; úsala solo para la UI de `apps/web-angular`, no para `apps/web` (React) ni la API.
-- Antes de trabajar con Zard, carga la skill y lee `apps/web-angular/components.json`. Ejecuta los comandos `pnpm dlx zard-cli ...` desde `apps/web-angular`; la ausencia de `components.json` en la raíz del monorepo no requiere ejecutar `init`.
-- Reutiliza los componentes instalados en `apps/web-angular/src/app/shared/zard/` y consulta su API real. Si la skill o el registro upstream discrepan del código instalado y sus pruebas, documenta la diferencia antes de cambiar comportamiento.
+- La skill oficial `zard` está instalada a nivel de proyecto en `.agents/skills/zard/`; úsala para la UI Angular de `apps/web`, no para la API.
+- Antes de trabajar con Zard, carga la skill y lee `apps/web/components.json`. Ejecuta los comandos `pnpm dlx zard-cli ...` desde `apps/web`; la ausencia de `components.json` en la raíz del monorepo no requiere ejecutar `init`.
+- Reutiliza los componentes instalados en `apps/web/src/app/shared/zard/` y consulta su API real. Si la skill o el registro upstream discrepan del código instalado y sus pruebas, documenta la diferencia antes de cambiar comportamiento.
 - La instalación de la skill no autoriza migraciones, reinicialización, cambios de dependencias ni sobrescrituras con `--overwrite`. No ejecutes `zard-migration` ni reemplaces componentes existentes sin autorización explícita.
 - Conserva la skill oficial sin modificaciones locales y versiona `skills-lock.json` junto con sus archivos. Para reinstalarla desde la raíz: `pnpm dlx skills add https://github.com/zard-ui/zardui --skill zard --agent opencode`.
-- El MCP `zard-ui` se configura en `opencode.json` para este proyecto, con `zard-mcp@1.1.0` y directorio de trabajo `apps/web-angular`. Solo se permiten las nueve herramientas de consulta; `install-component` y cualquier herramienta nueva quedan bloqueadas por defecto. Verifica la conexión con `opencode mcp list` y contrasta las respuestas upstream con los componentes locales; no cambies los permisos ni actualices la versión como efecto lateral de una tarea de UI.
+- El MCP `zard-ui` se configura en `opencode.json` para este proyecto, con `zard-mcp@1.1.0` y directorio de trabajo `apps/web`. Solo se permiten las nueve herramientas de consulta; `install-component` y cualquier herramienta nueva quedan bloqueadas por defecto. Verifica la conexión con `opencode mcp list` y contrasta las respuestas upstream con los componentes locales; no cambies los permisos ni actualices la versión como efecto lateral de una tarea de UI.
 
 ## Impeccable
 

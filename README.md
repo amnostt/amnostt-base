@@ -1,6 +1,6 @@
 # Amnostt Base
 
-Amnostt Base es una plantilla inicial reutilizable para proyectos de negocio derivados: un workspace pnpm con API NestJS, aplicación web React/Vite y PostgreSQL gestionado mediante Prisma. Auth proporciona identidad y sesiones; Tasks es un recurso de referencia para demostrar gestión y autorización, no el producto final de los proyectos derivados.
+Amnostt Base es una plantilla inicial reutilizable para proyectos de negocio derivados: un workspace pnpm con API NestJS, aplicación web Angular con Zard UI y PostgreSQL gestionado mediante Prisma. Auth proporciona identidad y sesiones; Tasks es un recurso de referencia para demostrar gestión y autorización, no el producto final de los proyectos derivados.
 
 ## Inicio local
 
@@ -9,7 +9,6 @@ corepack enable
 pnpm install --frozen-lockfile
 cp .env.example .env
 cp apps/api/.env.example apps/api/.env
-cp apps/web/.env.example apps/web/.env
 ```
 
 Define `DATABASE_URL` en `apps/api/.env` antes de ejecutar Prisma o iniciar la API. Para completar el entorno local también se requieren valores distintos y no versionados para `SEED_MEMBER_PASSWORD`, `SEED_ADMIN_PASSWORD`, `JWT_ACCESS_SECRET` y `JWT_REFRESH_SECRET`.
@@ -23,12 +22,13 @@ pnpm dev
 
 `pnpm dev` inicia la aplicación web y la API. Usa `pnpm dev:web` o `pnpm dev:api` para iniciar una sola aplicación. `pnpm db:down` conserva el volumen de PostgreSQL; `docker compose down -v` lo elimina.
 
-La SPA experimental independiente de Angular se inicia por separado con `pnpm dev:web-angular` y está disponible en `http://localhost:5174`. Implementa login, restauración de sesión, logout, navegación protegida y listado, creación, edición y eliminación de tareas con componentes Zard. Consulta la [guía de Angular](apps/web-angular/README.md); la aplicación React y la API no cambian.
+La aplicación Angular vive en `apps/web` y está disponible en `http://localhost:5174`. Su proxy de desarrollo dirige `/api/**` a `http://localhost:3000`; no requiere un archivo `.env` web. En producción se debe configurar el enrutamiento de `/api` hacia la API. Consulta la [guía de la aplicación web](apps/web/README.md).
 
 ## Capacidades implementadas
 
-- **Auth:** registro, inicio de sesión, restauración mediante refresh, cierre de sesión, consulta del usuario actual y cambio de contraseña.
-- **Tasks:** listado, consulta, creación, actualización y eliminación con permisos de propiedad, filtros, ordenamiento y paginación.
+- **API Auth:** registro, inicio de sesión, restauración mediante refresh, cierre de sesión, consulta del usuario actual y cambio de contraseña.
+- **Web Auth:** login, restauración de sesión, logout y navegación protegida. Registro y cambio de contraseña aún no tienen interfaz conectada.
+- **Tasks:** API de listado, consulta, creación, actualización y eliminación; la web ofrece listado y formularios de creación/edición, eliminación con confirmación, permisos de propiedad, filtros, ordenamiento y paginación.
 - **Salud:** `GET /api/health` para liveness y `GET /api/health/ready` para readiness de la base de datos.
 
 El backend es la autoridad de identidad, sesiones, permisos y propiedad. La administración de usuarios y roles, así como Profile, no están implementados.
@@ -43,9 +43,9 @@ El backend es la autoridad de identidad, sesiones, permisos y propiedad. La admi
 | `pnpm build`                       | Comprueba tipos y compila web; compila la API.             |
 | `pnpm db:migrate` / `pnpm db:seed` | Aplica migraciones / crea datos seed locales.              |
 
-Las comprobaciones habituales anteriores cubren la web React y la API, no la app Angular experimental. Para esta última usa `pnpm test:web-angular` y `pnpm build:web-angular`.
+Los comandos raíz cubren Angular y la API. Para ejecutar solo las pruebas web una vez, usa `pnpm --filter @amnostt/web test --watch=false`; para el gate automatizado completo, usa `CI=true pnpm test` y evita el modo watch de Angular.
 
-Antes de entregar cambios, ejecuta `pnpm lint`, `pnpm test`, `pnpm build` y `git diff --check`.
+Antes de entregar cambios, ejecuta `pnpm lint`, `CI=true pnpm test`, `pnpm build` y `git diff --check`.
 
 ## Documentación
 
