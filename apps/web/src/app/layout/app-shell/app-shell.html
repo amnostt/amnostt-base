@@ -2,9 +2,9 @@
   <app-sidebar />
   <main z-sidebar-inset>
     <header
-      class="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12"
+      class="flex h-16 shrink-0 items-center justify-between gap-2 px-4 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12"
     >
-      <div class="flex min-w-0 items-center gap-2 px-4">
+      <div class="flex min-w-0 items-center gap-2">
         <button
           type="button"
           z-sidebar-trigger
@@ -25,6 +25,24 @@
           </z-breadcrumb-item>
         </z-breadcrumb>
       </div>
+      <button
+        type="button"
+        z-button
+        zType="outline"
+        zSize="icon"
+        [attr.aria-label]="
+          darkMode.themeMode() === 'dark' ? 'Activar modo claro' : 'Activar modo oscuro'
+        "
+        [title]="darkMode.themeMode() === 'dark' ? 'Activar modo claro' : 'Activar modo oscuro'"
+        (click)="toggleTheme()"
+
+      >
+        @if (darkMode.themeMode() === 'dark') {
+          <ng-icon name="lucideSun" aria-hidden="true" />
+        } @else {
+          <ng-icon name="lucideMoon" aria-hidden="true" />
+        }
+      </button>
     </header>
     <div class="flex flex-1 flex-col gap-4 p-4 pt-0">
       <router-outlet />
