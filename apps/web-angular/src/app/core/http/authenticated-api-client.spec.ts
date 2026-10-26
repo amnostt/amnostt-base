@@ -328,6 +328,111 @@ describe('AuthenticatedApiClient', () => {
     });
   });
 
+  describe('DELETE', () => {
+    const path = '/tasks/example-task-id';
+
+    it('sends no body with session credentials and accepts a 204 response', async () => {
+      await authenticate();
+
+      const pending = client.delete<void>(path);
+      const request = http.expectOne(`/api${path}`);
+      expect(request.request.method).toBe('DELETE');
+      expect(request.request.body).toBeNull();
+      expect(request.request.headers.get('Authorization')).toBe('Bearer example-login-token');
+      expect(request.request.withCredentials).toBe(true);
+      request.flush(null, { status: 204, statusText: 'No Content' });
+
+      await expect(pending).resolves.toBeNull();
+      expect(session.state()).toEqual({ status: 'authenticated', user });
+      expect(JSON.stringify(session.state())).not.toContain('example-login-token');
+      http.expectNone(() => true);
+    });
+
+    it.each(['bootstrap-loading', 'unauthenticated'] as const)(
+      'rejects without sending a DELETE when the session is %s',
+      async (status) => {
+        if (status === 'unauthenticated') {
+          const restoration = session.bootstrap();
+          http.expectOne('/api/auth/refresh').flush(null, {
+            status: 401,
+            statusText: 'Unauthorized',
+          });
+          await restoration;
+        }
+
+        await expect(client.delete<void>(path)).rejects.toMatchObject({
+          message: 'An authenticated session is required',
+        });
+        expect(session.state()).toEqual({ status });
+        http.expectNone(() => true);
+      },
+    );
+
+    it.each([
+      '',
+      'tasks',
+      'https://example.org/tasks',
+      '//example.org/tasks',
+      '/\\example.org/tasks',
+    ])(
+      'rejects DELETE path %j without sending credentials or changing the session',
+      async (value) => {
+        await authenticate();
+
+        await expect(client.delete<void>(value)).rejects.toMatchObject({
+          message: 'Only API-relative paths are allowed',
+        });
+        expect(session.state()).toEqual({ status: 'authenticated', user });
+        http.expectNone(() => true);
+      },
+    );
+
+    it.each(['signed-out', 'signed-in-again'] as const)(
+      'rejects a late DELETE result after logout when the user is %s',
+      async (phase) => {
+        await authenticate();
+
+        const pending = client.delete<void>(path);
+        const rejection = expect(pending).rejects.toMatchObject({
+          message: 'Session changed during the request',
+        });
+        const request = http.expectOne(`/api${path}`);
+        const logout = session.logout();
+        http.expectOne('/api/auth/logout').flush(null, {
+          status: 204,
+          statusText: 'No Content',
+        });
+        await logout;
+        if (phase === 'signed-in-again') {
+          await authenticate();
+        }
+        request.flush(null, { status: 204, statusText: 'No Content' });
+
+        await rejection;
+        expect(session.state()).toEqual(
+          phase === 'signed-out'
+            ? { status: 'unauthenticated' }
+            : { status: 'authenticated', user },
+        );
+        http.expectNone(() => true);
+      },
+    );
+
+    it('preserves the API error for deletion feedback without changing the session', async () => {
+      await authenticate();
+      const errorBody = { message: 'Forbidden' };
+
+      const pending = client.delete<void>(path);
+      const rejection = expect(pending).rejects.toMatchObject({ status: 403, error: errorBody });
+      const request = http.expectOne(`/api${path}`);
+      request.flush(errorBody, { status: 403, statusText: 'Forbidden' });
+
+      await rejection;
+      expect(session.state()).toEqual({ status: 'authenticated', user });
+      http.expectNone(() => true);
+    });
+  });
+
   it.each([
     '',
     'tasks',

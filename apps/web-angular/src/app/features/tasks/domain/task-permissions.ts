@@ -17,3 +17,10 @@ export function canUpdateTask(user: CurrentUser, task: Task): boolean {
     (user.permissions.includes('tasks:update:own') && task.ownerId === user.id)
   );
 }
+
+export function canDeleteTask(user: CurrentUser, task: Task): boolean {
+  return (
+    user.permissions.includes('tasks:delete:any') ||
+    (user.permissions.includes('tasks:delete:own') && task.ownerId === user.id)
+  );
+}

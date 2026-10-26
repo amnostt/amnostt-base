@@ -1,6 +1,6 @@
 # Angular experimental app
 
-`apps/web-angular` is an independent, experimental Angular SPA alongside the React application. It implements login, session restoration, logout, permission-aware navigation, and task listing, creation and editing. Task deletion and user registration remain pending.
+`apps/web-angular` is an independent, experimental Angular SPA alongside the React application. It implements login, session restoration, logout, permission-aware navigation, and task listing, creation, editing and deletion. User registration remains pending.
 
 ## Run and verify
 
@@ -40,11 +40,19 @@ The protected `/tasks` route lists authorized tasks with loading, empty, error a
 
 Creation is available with `tasks:create:own` or `tasks:create:any`, independently of role names. The backend still authorizes every request and determines ownership. A single reactive form opens in the official Zard Sheet: bottom on mobile, right on desktop. It submits a trimmed title, optional description and calendar date, and the selected status; title and description limits remain 120 and 2,000 characters.
 
-Editing is available with `tasks:update:any`, or with `tasks:update:own` when the row's `ownerId` matches the current user. The Actions dropdown and each row's Context Menu share the same Edit option, permission check and handler. Editing reuses the creation Sheet and form, prefilled from the selected list-row snapshot; it adds neither an edit URL nor a detail request. PATCH sends explicit `null` to clear description or due date, while creation still omits empty optional fields.
+Editing is available with `tasks:update:any`, or with `tasks:update:own` when the row's `ownerId` matches the current user. The Actions dropdown and each row's Context Menu share the same actions, with independent Edit and Delete permission checks and handlers. Editing reuses the creation Sheet and form, prefilled from the selected list-row snapshot; it adds neither an edit URL nor a detail request. PATCH sends explicit `null` to clear description or due date, while creation still omits empty optional fields.
 
 - Closing a changed draft through the corner button, Escape or backdrop opens the official AlertDialog. Continuing editing retains the same form and values; discarding closes without saving or refreshing. Reopening creation starts empty, while reopening an edited row uses its listed values. Returning all values to their initial state allows a clean close in either mode.
 - Saving blocks all three close routes and duplicate submissions. Success closes the Sheet and refreshes the current query once. Failure preserves entered values and permits retry; a late result from a replaced session cannot publish success.
-- Component, routing and mocked HTTP integration tests exercise these behaviors, including current-query refresh ordering. The user reported successful desktop/mobile browser checks for creation and accepted editing after checking it in the browser. These reports do not substitute for automated browser or real-service persistence verification. Task deletion is not implemented in Angular yet.
+- Component, routing and mocked HTTP integration tests exercise these behaviors, including current-query refresh ordering.
+
+Deletion is available with `tasks:delete:any`, or with `tasks:delete:own` for an owned row. Both menus open the installed AlertDialog naming the selected task; cancellation sends no mutation. Confirmation closes the dialog and sends a bodyless DELETE through `TasksApi.remove` and the shared authenticated client. The API responds with 204; no resource body is expected.
+
+- The list announces pending, success or error feedback and blocks duplicate deletions while the request runs. It retains the row until success, then reloads the current query without resetting its filters or page, even when the page becomes empty. Failure preserves the row; retry requires another confirmation.
+- Permissions are rechecked when requesting and confirming deletion. Replaced-session results cannot publish success/error or refresh the list; an outstanding request finishing after component destruction cannot refresh it either. The backend remains the authorization authority.
+- Rendered menu tests and real-session/mocked-HTTP regressions cover cancellation, ownership, duplicate prevention, errors, query ordering, replacement sessions and destruction. These tests do not delete real stored tasks.
+
+The user reported successful desktop/mobile browser checks for creation and accepted editing and deletion after checking them in the browser. These reports do not substitute for automated browser or real-service persistence verification. Workspace-wide integration checks remain a separate completion step.
 
 ## UI components and theme
 

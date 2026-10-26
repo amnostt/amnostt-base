@@ -25,4 +25,8 @@ export class TasksApi {
   update(id: string, input: UpdateTaskInput): Promise<Task> {
     return this.client.patch<Task>(`/tasks/${id}`, input);
   }
+
+  remove(id: string): Promise<void> {
+    return this.client.delete<void>(`/tasks/${id}`);
+  }
 }

@@ -85,6 +85,22 @@
     </div>
   </div>
 
+  @if (deletingTask()) {
+    <p role="status" class="text-muted-foreground">Eliminando tarea...</p>
+  } @else {
+    @if (deletionFeedback(); as feedback) {
+      @if (feedback.kind === 'error') {
+        <p role="alert" class="text-destructive">
+          {{ feedback.message }}
+        </p>
+      } @else {
+        <p role="status" class="text-muted-foreground">
+          {{ feedback.message }}
+        </p>
+      }
+    }
+  }
+
   @switch (vm.status) {
     @case ('loading') {
       <p role="status" class="text-muted-foreground">Cargando tareas...</p>
@@ -141,7 +157,7 @@
                   z-table-row
                   z-context-menu
                   [zContextMenuTriggerFor]="taskMenu"
-                  [zDisabled]="!canEdit(task)"
+                  [zDisabled]="!canEdit(task) && !canDelete(task)"
                 >
                   <td z-table-cell class="font-medium">{{ task.title }}</td>
                   <td z-table-cell>{{ task.description ?? '—' }}</td>
@@ -150,7 +166,7 @@
                     {{ task.dueDate ?? '—' }}
                   </td>
                   <td z-table-cell>
-                    @if (canEdit(task)) {
+                    @if (canEdit(task) || canDelete(task)) {
                       <button
                         z-button
                         z-dropdown
@@ -171,6 +187,12 @@
                       @if (canEdit(task)) {
                         <z-dropdown-menu-item (click)="openEdit(task)">
                           Editar
+                        </z-dropdown-menu-item>
+                      }
+
+                      @if (canDelete(task)) {
+                        <z-dropdown-menu-item zType="destructive" (click)="requestDelete(task)">
+                          Eliminar
                         </z-dropdown-menu-item>
                       }
                     </z-dropdown-menu-content>

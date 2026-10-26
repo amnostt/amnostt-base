@@ -23,7 +23,7 @@ pnpm dev
 
 `pnpm dev` inicia la aplicación web y la API. Usa `pnpm dev:web` o `pnpm dev:api` para iniciar una sola aplicación. `pnpm db:down` conserva el volumen de PostgreSQL; `docker compose down -v` lo elimina.
 
-La SPA experimental independiente de Angular se inicia por separado con `pnpm dev:web-angular` y está disponible en `http://localhost:5174`. Implementa login, restauración de sesión, logout, navegación protegida y listado, creación y edición de tareas con componentes Zard. La eliminación de tareas en Angular sigue pendiente. Consulta la [guía de Angular](apps/web-angular/README.md); la aplicación React y la API no cambian.
+La SPA experimental independiente de Angular se inicia por separado con `pnpm dev:web-angular` y está disponible en `http://localhost:5174`. Implementa login, restauración de sesión, logout, navegación protegida y listado, creación, edición y eliminación de tareas con componentes Zard. Consulta la [guía de Angular](apps/web-angular/README.md); la aplicación React y la API no cambian.
 
 ## Capacidades implementadas
 

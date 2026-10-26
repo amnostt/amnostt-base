@@ -11,7 +11,7 @@ import { BreakpointObserver } from '@angular/cdk/layout';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router } from '@angular/router';
 
-import { canCreateTasks } from '../../domain/task-permissions';
+import { canCreateTasks, canDeleteTask } from '../../domain/task-permissions';
 import { SessionStore } from '@/features/auth/application/session-store';
 import type { TaskListResponse } from '../../domain/task-model';
 import { TasksApi } from '../../infrastructure/tasks-api';
@@ -92,6 +92,15 @@ export class TaskList implements OnInit {
   private readonly createForm = viewChild(TaskForm);
   private readonly alertDialog = inject(ZardAlertDialogService);
   private discardDialog: ZardAlertDialogRef<void> | null = null;
+
+  protected readonly deletingTask = signal<Task | null>(null);
+
+  protected readonly deletionFeedback = signal<{
+    kind: 'success' | 'error';
+    message: string;
+  } | null>(null);
+
+  private deleteDialog: ZardAlertDialogRef<void> | null = null;
 
   private readonly dropdown = inject(ZardDropdownService);
 
@@ -332,6 +341,7 @@ export class TaskList implements OnInit {
     this.destroyRef.onDestroy(() => {
       this.requestRevision++;
       this.discardDialog?.close();
+      this.deleteDialog?.close();
     });
 
     this.searchChanges
@@ -386,6 +396,66 @@ export class TaskList implements OnInit {
       if (revision !== this.requestRevision) return;
 
       this.state.set({ status: 'error' });
+    }
+  }
+
+  protected canDelete(task: Task): boolean {
+    const state = this.session.state();
+
+    return (
+      !this.deletingTask() && state.status === 'authenticated' && canDeleteTask(state.user, task)
+    );
+  }
+
+  protected requestDelete(task: Task): void {
+    if (!this.canDelete(task)) return;
+    if (this.deleteDialog && !this.deleteDialog.isClosing()) return;
+
+    this.dropdown.close();
+
+    this.deleteDialog = this.alertDialog.create<void>({
+      zTitle: `¿Eliminar "${task.title}"?`,
+      zDescription: 'Esta acción no se puede deshacer.',
+      zCancelText: 'Cancelar',
+      zOkText: 'Eliminar',
+      zOkDestructive: true,
+      zMaskClosable: false,
+      zOnOk: () => {
+        void this.removeTask(task);
+      },
+    });
+  }
+
+  private async removeTask(task: Task): Promise<void> {
+    if (!this.canDelete(task)) return;
+
+    const session = this.session.state();
+
+    this.deletingTask.set(task);
+    this.deletionFeedback.set(null);
+
+    try {
+      await this.api.remove(task.id);
+
+      if (this.destroyRef.destroyed || this.session.state() !== session) return;
+
+      this.deletionFeedback.set({
+        kind: 'success',
+        message: 'Tarea eliminada.',
+      });
+
+      void this.load();
+    } catch {
+      if (this.destroyRef.destroyed || this.session.state() !== session) return;
+
+      this.deletionFeedback.set({
+        kind: 'error',
+        message: 'No pudimos eliminar la tarea. Inténtalo de nuevo.',
+      });
+    } finally {
+      if (!this.destroyRef.destroyed) {
+        this.deletingTask.set(null);
+      }
     }
   }
 }

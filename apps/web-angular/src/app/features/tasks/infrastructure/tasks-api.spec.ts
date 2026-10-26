@@ -7,7 +7,7 @@ import { TasksApi } from './tasks-api';
 
 describe('TasksApi', () => {
   let service: TasksApi;
-  const client = { get: vi.fn(), post: vi.fn(), patch: vi.fn() };
+  const client = { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() };
   const response: TaskListResponse = {
     data: [
       {
@@ -28,6 +28,7 @@ describe('TasksApi', () => {
     client.get.mockReset();
     client.post.mockReset();
     client.patch.mockReset();
+    client.delete.mockReset();
     TestBed.configureTestingModule({
       providers: [{ provide: AuthenticatedApiClient, useValue: client }],
     });
@@ -127,6 +128,31 @@ describe('TasksApi', () => {
       expect(client.post).toHaveBeenCalledTimes(1);
       expect(client.post).toHaveBeenCalledWith('/tasks', input);
       expect(client.get).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('remove', () => {
+    it('deletes the selected task without a body or automatic list refresh', async () => {
+      client.delete.mockResolvedValue(null);
+
+      await expect(service.remove('delete-target-id')).resolves.toBeNull();
+      expect(client.delete).toHaveBeenCalledTimes(1);
+      expect(client.delete).toHaveBeenCalledWith('/tasks/delete-target-id');
+      expect(client.get).not.toHaveBeenCalled();
+      expect(client.post).not.toHaveBeenCalled();
+      expect(client.patch).not.toHaveBeenCalled();
+    });
+
+    it('propagates a removal failure unchanged without issuing other requests', async () => {
+      const failure = new Error('Unable to delete task');
+      client.delete.mockRejectedValue(failure);
+
+      await expect(service.remove('another-task-id')).rejects.toBe(failure);
+      expect(client.delete).toHaveBeenCalledTimes(1);
+      expect(client.delete).toHaveBeenCalledWith('/tasks/another-task-id');
+      expect(client.get).not.toHaveBeenCalled();
+      expect(client.post).not.toHaveBeenCalled();
+      expect(client.patch).not.toHaveBeenCalled();
     });
   });
 
