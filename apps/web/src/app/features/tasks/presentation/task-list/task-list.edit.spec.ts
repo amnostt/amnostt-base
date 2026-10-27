@@ -559,6 +559,29 @@ describe('TaskList shared edit entry', () => {
     expectNoMutationOrNavigation();
   });
 
+  it('rechecks update permission before opening an already rendered menu item', async () => {
+    await render();
+    const item = (await openMenu(foreignTask, 'dropdown')).querySelector<HTMLElement>(
+      '[role="menuitem"]',
+    )!;
+    session.set({ status: 'authenticated', user: user(['tasks:read:any']) });
+    item.click();
+    await settle();
+
+    expect(document.body.querySelector('[data-slot="sheet-content"]')).toBeNull();
+    expectNoMutationOrNavigation();
+  });
+
+  it('closes an open editor when update permission is withdrawn', async () => {
+    await render();
+    await selectEdit(await openMenu(foreignTask, 'dropdown'));
+    session.set({ status: 'authenticated', user: user(['tasks:read:any']) });
+    await settle();
+
+    await expectClosed();
+    expectNoMutationOrNavigation();
+  });
+
   it.each(['Viewer', 'Admin'])('offers no edit menu for a read-only %s', async (role) => {
     session.set({ status: 'authenticated', user: user(['tasks:read:any'], role) });
     await render();

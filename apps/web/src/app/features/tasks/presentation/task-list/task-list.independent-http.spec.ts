@@ -10,7 +10,7 @@ import { SessionStore } from '@/features/auth/application/session-store';
 import { provideZard } from '@/shared/zard/core/provider/providezard';
 import { TaskList } from './task-list';
 
-describe('TaskList creation HTTP and session integration', () => {
+describe('TaskList HTTP and session integration', () => {
   let http: HttpTestingController;
   let session: SessionStore;
   let harness: RouterTestingHarness;
@@ -20,7 +20,7 @@ describe('TaskList creation HTTP and session integration', () => {
     email: 'test@example.com',
     name: 'Test',
     role: 'Viewer',
-    permissions: ['tasks:read:own', 'tasks:create:own'],
+    permissions: ['tasks:read:own', 'tasks:create:own', 'tasks:update:own', 'tasks:delete:own'],
   };
   const created = {
     id: 'new-id',
@@ -68,15 +68,26 @@ describe('TaskList creation HTTP and session integration', () => {
     return document.body.querySelector<HTMLElement>('[data-slot="sheet-content"]');
   }
 
-  async function render() {
+  async function render(tasks: (typeof created)[] = []) {
     await login();
     harness = await RouterTestingHarness.create();
     const navigation = harness.navigateByUrl(url, TaskList);
     await vi.waitFor(() =>
-      http.expectOne('/api/tasks?search=report&status=pending&page=2').flush(empty),
+      http.expectOne('/api/tasks?search=report&status=pending&page=2').flush({
+        ...empty,
+        data: tasks,
+        meta: {
+          ...empty.meta,
+          totalItems: tasks.length ? 21 : 0,
+          totalPages: tasks.length ? 2 : 0,
+        },
+      }),
     );
     await navigation;
     await settle();
+  }
+
+  async function openCreate() {
     const button = Array.from(harness.routeNativeElement!.querySelectorAll('button')).find(
       (item) => item.textContent?.trim() === 'Crear tarea',
     )!;
@@ -88,6 +99,21 @@ describe('TaskList creation HTTP and session integration', () => {
     await settle();
   }
 
+  async function openTaskAction(label: 'Editar' | 'Eliminar') {
+    harness
+      .routeNativeElement!.querySelector<HTMLButtonElement>(
+        `button[aria-label="Acciones de ${created.title}"]`,
+      )!
+      .click();
+    await settle();
+    const item = Array.from(document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+      (element) => element.textContent?.trim() === label,
+    );
+    expect(item).toBeDefined();
+    item!.click();
+    await settle();
+  }
+
   function submit() {
     panel()!
       .querySelector('form')!
@@ -95,8 +121,18 @@ describe('TaskList creation HTTP and session integration', () => {
     harness.detectChanges();
   }
 
+  async function replaceSession() {
+    const logout = session.logout();
+    http.expectOne('/api/auth/logout').flush(null, { status: 204, statusText: 'No Content' });
+    await logout;
+    await settle();
+    await login('replacement-token');
+    await settle();
+  }
+
   it('sends one authenticated POST, retains a rejected draft, retries and refreshes once', async () => {
     await render();
+    await openCreate();
     const input = panel()!.querySelector<HTMLInputElement>('#task-title');
     submit();
     submit();
@@ -140,6 +176,7 @@ describe('TaskList creation HTTP and session integration', () => {
 
   it('does not publish or refresh an obsolete POST after logout and same-user login', async () => {
     await render();
+    await openCreate();
     submit();
     const post = http.expectOne('/api/tasks');
     const logout = session.logout();
@@ -156,6 +193,57 @@ describe('TaskList creation HTTP and session integration', () => {
     expect(JSON.stringify(session.state())).toBe(before);
     http.expectNone(() => true);
     expect(harness.routeNativeElement!.textContent).not.toContain('Total: 21');
+    expect(TestBed.inject(Router).url).toBe(url);
+  });
+
+  it('does not publish or refresh an obsolete PATCH after the session changes', async () => {
+    await render([created]);
+    await openTaskAction('Editar');
+    const input = panel()!.querySelector<HTMLInputElement>('#task-title')!;
+    input.value = 'Updated report';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await settle();
+    submit();
+
+    const patch = http.expectOne(`/api/tasks/${created.id}`);
+    expect(patch.request.method).toBe('PATCH');
+    expect(patch.request.headers.get('Authorization')).toBe('Bearer token-one');
+    expect(patch.request.body).toEqual({
+      title: 'Updated report',
+      status: 'pending',
+      description: null,
+      dueDate: null,
+    });
+    await replaceSession();
+
+    patch.flush({ ...created, title: 'Updated report' });
+    await settle();
+    http.expectNone(() => true);
+    expect(harness.routeNativeElement!.textContent).not.toContain('Updated report');
+    expect(TestBed.inject(Router).url).toBe(url);
+  });
+
+  it('does not publish or refresh an obsolete DELETE after the session changes', async () => {
+    await render([created]);
+    await openTaskAction('Eliminar');
+    const dialog = document.body.querySelector<HTMLElement>('[role="alertdialog"]')!;
+    const confirm = Array.from(dialog.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Eliminar',
+    );
+    expect(confirm).toBeDefined();
+    confirm!.click();
+    const deletion = http.expectOne(`/api/tasks/${created.id}`);
+    expect(deletion.request.method).toBe('DELETE');
+    expect(deletion.request.body).toBeNull();
+    expect(deletion.request.headers.get('Authorization')).toBe('Bearer token-one');
+
+    await replaceSession();
+    deletion.flush(null, { status: 204, statusText: 'No Content' });
+    await settle();
+
+    http.expectNone(() => true);
+    expect(harness.routeNativeElement!.textContent).toContain(created.title);
+    expect(harness.routeNativeElement!.textContent).not.toContain('Tarea eliminada.');
     expect(TestBed.inject(Router).url).toBe(url);
   });
 });
