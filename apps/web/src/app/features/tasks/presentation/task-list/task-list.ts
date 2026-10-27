@@ -82,6 +82,7 @@ type TaskListState =
     }),
   ],
   selector: 'app-task-list',
+  host: { class: 'flex min-h-0 min-w-0 flex-1 flex-col' },
   styleUrl: './task-list.css',
   templateUrl: './task-list.html',
 })

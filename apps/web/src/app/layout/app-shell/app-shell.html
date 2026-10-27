@@ -1,6 +1,9 @@
 <z-sidebar-provider zDefaultOpen="true">
   <app-sidebar />
-  <main z-sidebar-inset>
+  <main
+    z-sidebar-inset
+    class="min-w-0 has-[app-task-list]:h-dvh has-[app-task-list]:min-h-0 has-[app-task-list]:overflow-y-auto"
+  >
     <header
       class="flex h-16 shrink-0 items-center justify-between gap-2 px-4 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12"
     >
@@ -35,7 +38,6 @@
         "
         [title]="darkMode.themeMode() === 'dark' ? 'Activar modo claro' : 'Activar modo oscuro'"
         (click)="toggleTheme()"
-
       >
         @if (darkMode.themeMode() === 'dark') {
           <ng-icon name="lucideSun" aria-hidden="true" />
@@ -44,7 +46,7 @@
         }
       </button>
     </header>
-    <div class="flex flex-1 flex-col gap-4 p-4 pt-0">
+    <div class="flex min-h-0 min-w-0 flex-1 flex-col gap-4 p-4 pt-0">
       <router-outlet />
     </div>
   </main>

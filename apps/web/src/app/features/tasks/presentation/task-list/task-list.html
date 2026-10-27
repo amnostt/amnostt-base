@@ -1,7 +1,10 @@
 @let vm = state();
 
-<section class="grid min-w-0 gap-6" aria-labelledby="tasks-heading">
-  <header class="flex flex-wrap items-center justify-between gap-3">
+<section
+  class="@container flex min-h-0 min-w-0 flex-1 flex-col gap-6"
+  aria-labelledby="tasks-heading"
+>
+  <header class="flex shrink-0 flex-wrap items-center justify-between gap-3">
     <h1 id="tasks-heading" class="text-2xl font-semibold">Tareas</h1>
 
     @if (canCreate()) {
@@ -12,8 +15,11 @@
     }
   </header>
 
-  <section class="flex justify-between gap-2">
-    <div z-field class="w-full sm:max-w-sm">
+  <section
+    class="grid shrink-0 grid-cols-1 gap-4 @min-[44rem]:grid-cols-[minmax(0,1fr)_11rem_17rem]"
+    aria-label="Filtros de tareas"
+  >
+    <div z-field class="min-w-0 w-full @min-[44rem]:max-w-sm">
       <label z-field-label for="task-search">Buscar tareas</label>
       <input
         z-input
@@ -25,7 +31,7 @@
       />
     </div>
 
-    <div z-field class="w-full sm:w-56" aria-labelledby="task-status-label">
+    <div z-field class="min-w-0 w-full" aria-labelledby="task-status-label">
       <label z-field-label id="task-status-label" for="task-status">Estado</label>
       <z-select
         id="task-status"
@@ -41,12 +47,12 @@
       </z-select>
     </div>
 
-    <div z-field>
+    <div z-field class="min-w-0 w-full">
       <label z-field-label for="task-due-date">Vencimiento</label>
 
-      <div class="flex flex-wrap items-center gap-2">
+      <div class="flex min-w-0 items-center gap-2">
         <z-date-picker
-          class="w-full sm:w-64"
+          class="min-w-0 flex-1"
           zId="task-due-date"
           zMode="single"
           zLocale="es"
@@ -62,6 +68,7 @@
           type="button"
           zType="ghost"
           zSize="icon-sm"
+          class="shrink-0"
           aria-label="Limpiar vencimiento"
           [zDisabled]="!query().dueDate"
           (click)="changeDueDate(null)"
@@ -90,24 +97,29 @@
 
   @switch (vm.status) {
     @case ('loading') {
-      <p role="status" class="text-muted-foreground">Cargando tareas...</p>
+      <p role="status" class="text-muted-foreground min-h-0 flex-1">Cargando tareas...</p>
     }
     @case ('error') {
-      <div class="grid justify-items-start gap-3">
+      <div class="grid min-h-0 flex-1 content-start justify-items-start gap-3">
         <p role="alert" class="text-destructive">No se pudieron cargar las tareas.</p>
         <button z-button type="button" zType="outline" (click)="load()">Reintentar</button>
       </div>
     }
     @case ('ready') {
       @if (vm.response.data.length === 0) {
-        <p class="text-muted-foreground">No hay tareas para mostrar.</p>
+        <p class="text-muted-foreground min-h-0 flex-1">No hay tareas para mostrar.</p>
       } @else {
-        <div class="overflow-x-auto rounded-md border">
+        <div
+          class="min-h-0 min-w-0 flex-1 overflow-auto rounded-md border"
+          role="region"
+          aria-label="Tabla de tareas"
+          tabindex="0"
+        >
           <table z-table class="min-w-160">
             <caption z-table-caption class="sr-only">
               Listado de tareas
             </caption>
-            <thead z-table-header>
+            <thead z-table-header class="bg-background sticky top-0 z-10">
               <tr z-table-row>
                 <th z-table-head scope="col" [attr.aria-sort]="columnSort('title')">
                   <button
@@ -192,7 +204,8 @@
       }
     }
   }
-  <div class="flex flex-wrap items-center justify-between gap-4">
+
+  <div class="flex shrink-0 flex-wrap items-center justify-between gap-4">
     @if (vm.status === 'ready' && vm.response.data.length > 0) {
       <p class="text-muted-foreground text-sm">Total: {{ vm.response.meta.totalItems }}</p>
     }

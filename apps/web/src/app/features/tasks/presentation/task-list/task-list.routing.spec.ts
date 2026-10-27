@@ -140,6 +140,56 @@ describe('TaskList real-router query ordering', () => {
     return element!;
   }
 
+  it('stacks narrow filters and keeps pagination outside the scrollable table', async () => {
+    const tasks = Array.from({ length: 20 }, (_, index) => ({
+      ...result('Task').data[0],
+      id: `task-${index}`,
+      title: `Task ${index}`,
+    }));
+    api.list
+      .mockResolvedValueOnce({ ...pagedResult(), data: tasks })
+      .mockResolvedValueOnce(pagedResult(1, 20, 0));
+
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/tasks', TaskList);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+
+    const page = harness.routeNativeElement!.querySelector<HTMLElement>(
+      'section[aria-labelledby="tasks-heading"]',
+    );
+    expect(page?.classList.contains('flex-1')).toBe(true);
+    expect(page?.classList.contains('@container')).toBe(true);
+    const filters = page!.querySelector<HTMLElement>('section[aria-label="Filtros de tareas"]');
+    expect(filters?.classList.contains('grid-cols-1')).toBe(true);
+    expect(filters?.classList.contains('@min-[44rem]:grid-cols-[minmax(0,1fr)_11rem_17rem]')).toBe(
+      true,
+    );
+    expect(filters?.children).toHaveLength(3);
+    expect(filters?.children[0].querySelector('#task-search')).not.toBeNull();
+    expect(filters?.children[1].querySelector('#task-status')).not.toBeNull();
+    expect(filters?.children[2].querySelector('z-date-picker')).not.toBeNull();
+    expect(
+      filters?.children[2].querySelector('button[aria-label="Limpiar vencimiento"]'),
+    ).not.toBeNull();
+    const scrollArea = page!.querySelector<HTMLElement>(
+      '[role="region"][aria-label="Tabla de tareas"]',
+    );
+    expect(scrollArea?.classList.contains('overflow-auto')).toBe(true);
+    expect(scrollArea?.getAttribute('tabindex')).toBe('0');
+    expect(scrollArea?.querySelectorAll('tbody tr')).toHaveLength(20);
+    expect(scrollArea?.querySelector('thead')?.classList.contains('sticky')).toBe(true);
+    expect(scrollArea?.contains(pagination(harness))).toBe(false);
+
+    await harness.navigateByUrl('/tasks?status=completed', TaskList);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+
+    expect(page!.querySelector('[role="region"][aria-label="Tabla de tareas"]')).toBeNull();
+    expect(page!.textContent).toContain('No hay tareas para mostrar.');
+    expect(page!.contains(pagination(harness))).toBe(true);
+  });
+
   function numberedPages(harness: RouterTestingHarness) {
     return Array.from(pagination(harness).querySelectorAll<HTMLButtonElement>('button')).filter(
       (button) => !button.closest('z-pagination-previous, z-pagination-next'),
