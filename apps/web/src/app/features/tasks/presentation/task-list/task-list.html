@@ -21,28 +21,6 @@
     />
   </div>
 
-  <button
-    z-button
-    z-dropdown
-    zType="outline"
-    zSize="sm"
-    type="button"
-    aria-label="Más opciones de ordenación"
-    aria-describedby="task-current-sort"
-    [zDropdownMenu]="sortMenu"
-  >
-    <span id="task-current-sort">{{ currentSortLabel() }}</span>
-    <ng-icon name="lucideChevronDown" aria-hidden="true" />
-  </button>
-
-  <z-dropdown-menu-content #sortMenu="zDropdownMenuContent" class="w-64">
-    @for (option of secondarySortOptions; track option.value) {
-      <z-dropdown-menu-item (click)="changeSort(option.value)">
-        {{ option.label }}
-      </z-dropdown-menu-item>
-    }
-  </z-dropdown-menu-content>
-
   <z-select
     class="w-full sm:w-56"
     [zValue]="query().status || 'all'"
@@ -76,11 +54,12 @@
         z-button
         type="button"
         zType="ghost"
-        zSize="sm"
+        zSize="icon-sm"
+        aria-label="Limpiar vencimiento"
         [zDisabled]="!query().dueDate"
         (click)="changeDueDate(null)"
       >
-        Limpiar vencimiento
+        <ng-icon name="lucideEraser" aria-hidden="true" />
       </button>
     </div>
   </div>

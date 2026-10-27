@@ -46,15 +46,11 @@ function deferred() {
 }
 
 const sortCases = [
-  { sort: '-createdAt', label: 'Más recientes' },
-  { sort: 'createdAt', label: 'Más antiguas' },
-  { sort: '-updatedAt', label: 'Actualización más reciente' },
-  { sort: 'updatedAt', label: 'Actualización más antigua' },
-  { sort: 'dueDate', label: 'Vencimiento más próximo' },
-  { sort: '-dueDate', label: 'Vencimiento más lejano' },
-  { sort: 'title', label: 'Título: A–Z' },
-  { sort: '-title', label: 'Título: Z–A' },
-];
+  { sort: 'dueDate', field: 'dueDate', initialSort: '-dueDate' },
+  { sort: '-dueDate', field: 'dueDate', initialSort: 'dueDate' },
+  { sort: 'title', field: 'title', initialSort: '-title' },
+  { sort: '-title', field: 'title', initialSort: 'title' },
+] as const;
 
 describe('TaskList real-router query ordering', () => {
   const api = { list: vi.fn<(query?: TaskQueryState) => Promise<TaskListResponse>>() };
@@ -108,15 +104,6 @@ describe('TaskList real-router query ordering', () => {
     expect(activeColumns).toHaveLength(/^-?(title|dueDate)$/.test(sort) ? 1 : 0);
   }
 
-  function sortMenuTrigger(harness: RouterTestingHarness) {
-    const trigger = harness.routeNativeElement!.querySelector<HTMLButtonElement>(
-      'button[aria-label="Más opciones de ordenación"]',
-    );
-    expect(trigger).not.toBeNull();
-    expect(trigger!.getAttribute('aria-haspopup')).toBe('menu');
-    return trigger!;
-  }
-
   function pageSizeTrigger(harness: RouterTestingHarness) {
     const group = harness.routeNativeElement!.querySelector(
       '[role="group"][aria-label="Tareas por página"]',
@@ -163,10 +150,13 @@ describe('TaskList real-router query ordering', () => {
   }
 
   function clearDueDate(harness: RouterTestingHarness) {
-    const button = Array.from(harness.routeNativeElement!.querySelectorAll('button')).find(
-      (item) => item.textContent?.trim() === 'Limpiar vencimiento',
+    const button = harness.routeNativeElement!.querySelector<HTMLButtonElement>(
+      'button[aria-label="Limpiar vencimiento"]',
     );
-    expect(button).toBeDefined();
+    expect(button).not.toBeNull();
+    expect(
+      button!.querySelector('ng-icon[name="lucideEraser"][aria-hidden="true"]'),
+    ).not.toBeNull();
     return button!;
   }
 
@@ -488,24 +478,14 @@ describe('TaskList real-router query ordering', () => {
   });
 
   it.each(sortCases)(
-    'updates the URL and reloads once when sorting by $label',
-    async ({ sort, label }) => {
+    'updates the URL and reloads once when sorting by $sort from a column header',
+    async ({ sort, field, initialSort }) => {
       const sortedResponse = {
         ...result('Server first'),
         data: [...result('Server first').data, ...result('Server second').data],
       };
       api.list.mockResolvedValue(sortedResponse);
       const harness = await RouterTestingHarness.create();
-      const isHeaderSort = /^-?(title|dueDate)$/.test(sort);
-      const column = sort === 'title' || sort === '-title' ? 'title' : 'dueDate';
-      const initialSort = isHeaderSort
-        ? sort.startsWith('-')
-          ? column
-          : `-${column}`
-        : sort === '-createdAt'
-          ? 'title'
-          : '-createdAt';
-      const initialLabel = sortCases.find((item) => item.sort === initialSort)!.label;
       const initialUrl =
         '/tasks?search=Plan%20%26%20review&status=completed' +
         '&ownerId=11111111-1111-4111-8111-111111111111' +
@@ -526,48 +506,20 @@ describe('TaskList real-router query ordering', () => {
         ),
       ).toBeNull();
       expectColumnSort(harness, initialSort);
-      expect(sortMenuTrigger(harness).textContent).toContain(initialLabel);
-
-      if (isHeaderSort) {
-        columnHeader(harness, column).querySelector('button')!.click();
-      } else {
-        sortMenuTrigger(harness).click();
-        await harness.fixture.whenStable();
-        harness.detectChanges();
-        expect(sortMenuTrigger(harness).getAttribute('aria-expanded')).toBe('true');
-        expect(document.body.querySelector('[role="menu"]')).not.toBeNull();
-        const items = Array.from(document.body.querySelectorAll<HTMLElement>('[role="menuitem"]'));
-        expect(items.map((item) => item.textContent?.trim())).toEqual(
-          sortCases
-            .filter((item) => !/^-?(title|dueDate)$/.test(item.sort))
-            .map((item) => item.label),
-        );
-        const item = items.find((item) => item.textContent?.trim() === label);
-        expect(item).toBeDefined();
-        item!.click();
-      }
+      columnHeader(harness, field).querySelector('button')!.click();
       await harness.fixture.whenStable();
       harness.detectChanges();
-
-      if (!isHeaderSort) {
-        await vi.waitFor(() => {
-          expect(document.body.querySelector('[role="menu"]')).toBeNull();
-          expect(sortMenuTrigger(harness).getAttribute('aria-expanded')).toBe('false');
-          expect(document.activeElement).toBe(sortMenuTrigger(harness));
-        });
-      }
 
       const url = TestBed.inject(Router).url;
       const params = new URLSearchParams(url.split('?')[1]);
       const expectedQuery = { ...initialQuery, sort, page: 1 };
       expect(url.split('?')[0]).toBe('/tasks');
       expect(parseTaskQuery(params.toString())).toEqual(expectedQuery);
-      expect(params.get('sort')).toBe(sort === '-createdAt' ? null : sort);
+      expect(params.get('sort')).toBe(sort);
       expect(params.has('page')).toBe(false);
       expect(api.list).toHaveBeenCalledTimes(2);
       expect(api.list).toHaveBeenLastCalledWith(expectedQuery);
       expectColumnSort(harness, sort);
-      expect(sortMenuTrigger(harness).textContent).toContain(label);
       expect(searchInput(harness).value).toBe('Plan & review');
       const titles = Array.from(
         harness.routeNativeElement!.querySelectorAll('tbody tr td:first-child'),
@@ -581,7 +533,6 @@ describe('TaskList real-router query ordering', () => {
       expect(api.list).toHaveBeenCalledTimes(3);
       expect(api.list).toHaveBeenLastCalledWith(initialQuery);
       expectColumnSort(harness, initialSort);
-      expect(sortMenuTrigger(harness).textContent).toContain(initialLabel);
     },
   );
 

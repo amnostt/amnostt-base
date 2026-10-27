@@ -48,6 +48,7 @@ import {
   lucideArrowUp,
   lucideArrowUpDown,
   lucideChevronDown,
+  lucideEraser,
 } from '@ng-icons/lucide';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 
@@ -75,6 +76,7 @@ type TaskListState =
       lucideArrowUp,
       lucideArrowUpDown,
       lucideChevronDown,
+      lucideEraser,
     }),
   ],
   selector: 'app-task-list',
@@ -167,31 +169,6 @@ export class TaskList implements OnInit {
 
   protected readonly searchText = signal('');
 
-  protected readonly sortOptions = [
-    { value: '-createdAt', label: 'Más recientes' },
-    { value: 'createdAt', label: 'Más antiguas' },
-    { value: '-updatedAt', label: 'Actualización más reciente' },
-    { value: 'updatedAt', label: 'Actualización más antigua' },
-    { value: 'dueDate', label: 'Vencimiento más próximo' },
-    { value: '-dueDate', label: 'Vencimiento más lejano' },
-    { value: 'title', label: 'Título: A–Z' },
-    { value: '-title', label: 'Título: Z–A' },
-  ] as const;
-
-  protected readonly secondarySortOptions = this.sortOptions.filter(
-    ({ value }) =>
-      value === 'createdAt' ||
-      value === '-createdAt' ||
-      value === 'updatedAt' ||
-      value === '-updatedAt',
-  );
-
-  protected readonly currentSortLabel = computed(
-    () =>
-      this.sortOptions.find((option) => option.value === this.query().sort)?.label ??
-      'Más recientes',
-  );
-
   protected readonly pageSizeOptions = [10, 20, 50, 100] as const;
 
   protected readonly paginationMeta = signal<TaskListResponse['meta'] | null>(null);
@@ -232,7 +209,10 @@ export class TaskList implements OnInit {
   }
 
   protected toggleColumnSort(field: 'title' | 'dueDate'): void {
-    this.changeSort(this.query().sort === field ? `-${field}` : field);
+    const sort: TaskQueryState['sort'] = this.query().sort === field ? `-${field}` : field;
+    const nextQuery = updateTaskQuery(serializeTaskQuery(this.query()), { sort });
+
+    void this.router.navigateByUrl(`/tasks${nextQuery}`);
   }
 
   protected columnSort(field: 'title' | 'dueDate'): 'ascending' | 'descending' | null {
@@ -294,16 +274,6 @@ export class TaskList implements OnInit {
     if (dueDate === this.query().dueDate) return;
 
     const nextQuery = updateTaskQuery(serializeTaskQuery(this.query()), { dueDate });
-
-    void this.router.navigateByUrl(`/tasks${nextQuery}`);
-  }
-
-  protected changeSort(value: string | string[]): void {
-    const option = this.sortOptions.find((item) => item.value === value);
-
-    if (!option || option.value === this.query().sort) return;
-
-    const nextQuery = updateTaskQuery(serializeTaskQuery(this.query()), { sort: option.value });
 
     void this.router.navigateByUrl(`/tasks${nextQuery}`);
   }
