@@ -5,64 +5,72 @@
     <h1 id="tasks-heading" class="text-2xl font-semibold">Tareas</h1>
 
     @if (canCreate()) {
-      <button z-button type="button" (click)="openCreate()">Crear tarea</button>
+      <button z-button type="button" (click)="openCreate()">
+        <ng-icon name="lucidePlus" aria-hidden="true" />
+        Crear tarea
+      </button>
     }
   </header>
 
-  <div z-field class="w-full sm:max-w-sm">
-    <label z-field-label for="task-search">Buscar tareas</label>
-    <input
-      z-input
-      id="task-search"
-      type="search"
-      placeholder="Buscar tareas..."
-      [value]="searchText()"
-      (input)="changeSearch($event)"
-    />
-  </div>
-
-  <z-select
-    class="w-full sm:w-56"
-    [zValue]="query().status || 'all'"
-    (zSelectionChange)="changeStatus($event)"
-  >
-    <z-select-group>
-      <z-select-item zValue="all">Todos los estados</z-select-item>
-      <z-select-item zValue="pending">Pendiente</z-select-item>
-      <z-select-item zValue="in_progress">En progreso</z-select-item>
-      <z-select-item zValue="completed">Completada</z-select-item>
-    </z-select-group>
-  </z-select>
-
-  <div z-field>
-    <label z-field-label for="task-due-date">Vencimiento</label>
-
-    <div class="flex flex-wrap items-center gap-2">
-      <z-date-picker
-        class="w-full sm:w-64"
-        zId="task-due-date"
-        zMode="single"
-        zLocale="es"
-        zFormat="longDate"
-        zIcon="calendar"
-        zPlaceholder="Todas las fechas"
-        [value]="dueDateValue()"
-        (dateChange)="changeDueDate($event)"
+  <section class="flex justify-between gap-2">
+    <div z-field class="w-full sm:max-w-sm">
+      <label z-field-label for="task-search">Buscar tareas</label>
+      <input
+        z-input
+        id="task-search"
+        type="search"
+        placeholder="Buscar tareas..."
+        [value]="searchText()"
+        (input)="changeSearch($event)"
       />
-
-      <button
-        z-button
-        type="button"
-        zType="ghost"
-        zSize="icon-sm"
-        aria-label="Limpiar vencimiento"
-        [zDisabled]="!query().dueDate"
-        (click)="changeDueDate(null)"
-      >
-        <ng-icon name="lucideEraser" aria-hidden="true" />
-      </button>
     </div>
-  </div>
+
+    <div z-field class="w-full sm:w-56" aria-labelledby="task-status-label">
+      <label z-field-label id="task-status-label" for="task-status">Estado</label>
+      <z-select
+        id="task-status"
+        [zValue]="query().status || 'all'"
+        (zSelectionChange)="changeStatus($event)"
+      >
+        <z-select-group>
+          <z-select-item zValue="all">Todos los estados</z-select-item>
+          <z-select-item zValue="pending">Pendiente</z-select-item>
+          <z-select-item zValue="in_progress">En progreso</z-select-item>
+          <z-select-item zValue="completed">Completada</z-select-item>
+        </z-select-group>
+      </z-select>
+    </div>
+
+    <div z-field>
+      <label z-field-label for="task-due-date">Vencimiento</label>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <z-date-picker
+          class="w-full sm:w-64"
+          zId="task-due-date"
+          zMode="single"
+          zLocale="es"
+          zFormat="longDate"
+          zIcon="calendar"
+          zPlaceholder="Todas las fechas"
+          [value]="dueDateValue()"
+          (dateChange)="changeDueDate($event)"
+        />
+
+        <button
+          z-button
+          type="button"
+          zType="ghost"
+          zSize="icon-sm"
+          aria-label="Limpiar vencimiento"
+          [zDisabled]="!query().dueDate"
+          (click)="changeDueDate(null)"
+        >
+          <ng-icon name="lucideEraser" aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+  </section>
 
   @if (deletingTask()) {
     <p role="status" class="text-muted-foreground">Eliminando tarea...</p>

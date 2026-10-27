@@ -82,6 +82,24 @@ describe('TaskList real-router query ordering', () => {
     return trigger!;
   }
 
+  it('labels the status filter and focuses its select when the label is clicked', async () => {
+    api.list.mockResolvedValue(result('Task'));
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/tasks', TaskList);
+    await harness.fixture.whenStable();
+    harness.detectChanges();
+
+    const label = harness.routeNativeElement!.querySelector<HTMLLabelElement>(
+      'label[for="task-status"]',
+    );
+    expect(label?.textContent?.trim()).toBe('Estado');
+    expect(label?.id).toBe('task-status-label');
+    expect(label?.closest('[role="group"]')?.getAttribute('aria-labelledby')).toBe(label?.id);
+    label!.click();
+
+    expect(document.activeElement).toBe(statusTrigger(harness));
+  });
+
   function columnHeader(harness: RouterTestingHarness, field: 'title' | 'dueDate') {
     const label = field === 'title' ? 'Título' : 'Vencimiento';
     const header = Array.from(

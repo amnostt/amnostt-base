@@ -49,6 +49,7 @@ import {
   lucideArrowUpDown,
   lucideChevronDown,
   lucideEraser,
+  lucidePlus,
 } from '@ng-icons/lucide';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 
@@ -77,6 +78,7 @@ type TaskListState =
       lucideArrowUpDown,
       lucideChevronDown,
       lucideEraser,
+      lucidePlus,
     }),
   ],
   selector: 'app-task-list',
