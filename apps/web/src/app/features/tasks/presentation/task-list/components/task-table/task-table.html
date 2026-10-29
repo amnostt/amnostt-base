@@ -1,0 +1,90 @@
+<div
+  class="min-h-0 min-w-0 flex-1 overflow-auto rounded-md border"
+  role="region"
+  aria-label="Tabla de tareas"
+  tabindex="0"
+>
+  <table z-table class="min-w-160">
+    <caption z-table-caption class="sr-only">
+      Listado de tareas
+    </caption>
+    <thead z-table-header class="bg-background sticky top-0 z-10">
+      <tr z-table-row>
+        <th z-table-head scope="col" [attr.aria-sort]="columnSort('title')">
+          <button
+            z-button
+            zType="ghost"
+            zSize="sm"
+            type="button"
+            (click)="sortChange.emit('title')"
+          >
+            Título
+            <ng-icon [name]="columnIcon('title')" aria-hidden="true" />
+          </button>
+        </th>
+        <th z-table-head scope="col">Descripción</th>
+        <th z-table-head scope="col">Estado</th>
+        <th z-table-head scope="col" [attr.aria-sort]="columnSort('dueDate')">
+          <button
+            z-button
+            zType="ghost"
+            zSize="sm"
+            type="button"
+            (click)="sortChange.emit('dueDate')"
+          >
+            Vencimiento
+            <ng-icon [name]="columnIcon('dueDate')" aria-hidden="true" />
+          </button>
+        </th>
+        <th z-table-head scope="col">Acciones</th>
+      </tr>
+    </thead>
+    <tbody z-table-body>
+      @for (row of rows(); track row.task.id) {
+        <tr
+          z-table-row
+          z-context-menu
+          [zContextMenuTriggerFor]="taskMenu"
+          [zDisabled]="!row.canEdit && !row.canDelete"
+        >
+          <td z-table-cell class="font-medium">{{ row.task.title }}</td>
+          <td z-table-cell>{{ row.task.description ?? '—' }}</td>
+          <td z-table-cell>{{ row.task.status }}</td>
+          <td z-table-cell class="whitespace-nowrap">
+            {{ row.task.dueDate ?? '—' }}
+          </td>
+          <td z-table-cell>
+            @if (row.canEdit || row.canDelete) {
+              <button
+                z-button
+                z-dropdown
+                type="button"
+                zType="ghost"
+                zSize="sm"
+                [attr.aria-label]="'Acciones de ' + row.task.title"
+                [zDropdownMenu]="taskMenu"
+              >
+                Acciones
+                <ng-icon name="lucideChevronDown" aria-hidden="true" />
+              </button>
+            } @else {
+              <span class="text-muted-foreground">-</span>
+            }
+
+            <z-dropdown-menu-content #taskMenu class="w-40">
+              @if (row.canEdit) {
+                <z-dropdown-menu-item (click)="edit.emit(row.task)"> Editar </z-dropdown-menu-item>
+              }
+
+              @if (row.canDelete) {
+                <z-dropdown-menu-item zType="destructive" (click)="delete.emit(row.task)">
+                  Eliminar
+                </z-dropdown-menu-item>
+              }
+            </z-dropdown-menu-content>
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

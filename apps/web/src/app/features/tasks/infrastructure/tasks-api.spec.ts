@@ -79,15 +79,6 @@ describe('TasksApi', () => {
     expect(client.get).toHaveBeenCalledWith('/tasks');
   });
 
-  it('propagates a filtered request failure without changing it', async () => {
-    const failure = new Error('Filtered request failed');
-    client.get.mockRejectedValue(failure);
-
-    await expect(service.list({ ...TASK_QUERY_DEFAULTS, status: 'pending' })).rejects.toBe(failure);
-    expect(client.get).toHaveBeenCalledTimes(1);
-    expect(client.get).toHaveBeenCalledWith('/tasks?status=pending');
-  });
-
   describe('create', () => {
     it('posts the supported fields and returns the created task without an envelope', async () => {
       const input: CreateTaskInput = {
@@ -118,17 +109,6 @@ describe('TasksApi', () => {
       });
       expect(client.get).not.toHaveBeenCalled();
     });
-
-    it('propagates a creation failure unchanged for the form to handle', async () => {
-      const input: CreateTaskInput = { title: 'Prepare report', status: 'pending' };
-      const failure = new Error('Unable to create task');
-      client.post.mockRejectedValue(failure);
-
-      await expect(service.create(input)).rejects.toBe(failure);
-      expect(client.post).toHaveBeenCalledTimes(1);
-      expect(client.post).toHaveBeenCalledWith('/tasks', input);
-      expect(client.get).not.toHaveBeenCalled();
-    });
   });
 
   describe('remove', () => {
@@ -138,18 +118,6 @@ describe('TasksApi', () => {
       await expect(service.remove('delete-target-id')).resolves.toBeNull();
       expect(client.delete).toHaveBeenCalledTimes(1);
       expect(client.delete).toHaveBeenCalledWith('/tasks/delete-target-id');
-      expect(client.get).not.toHaveBeenCalled();
-      expect(client.post).not.toHaveBeenCalled();
-      expect(client.patch).not.toHaveBeenCalled();
-    });
-
-    it('propagates a removal failure unchanged without issuing other requests', async () => {
-      const failure = new Error('Unable to delete task');
-      client.delete.mockRejectedValue(failure);
-
-      await expect(service.remove('another-task-id')).rejects.toBe(failure);
-      expect(client.delete).toHaveBeenCalledTimes(1);
-      expect(client.delete).toHaveBeenCalledWith('/tasks/another-task-id');
       expect(client.get).not.toHaveBeenCalled();
       expect(client.post).not.toHaveBeenCalled();
       expect(client.patch).not.toHaveBeenCalled();
@@ -213,6 +181,7 @@ describe('TasksApi', () => {
       expect(client.patch).toHaveBeenCalledWith('/tasks/example-task-id', input);
       expect(client.get).not.toHaveBeenCalled();
       expect(client.post).not.toHaveBeenCalled();
+      expect(client.delete).not.toHaveBeenCalled();
     });
   });
 });

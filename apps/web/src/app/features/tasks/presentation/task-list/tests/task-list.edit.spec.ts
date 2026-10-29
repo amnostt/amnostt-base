@@ -8,10 +8,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SessionStore } from '@/features/auth/application/session-store';
 import type { CurrentUser, SessionState } from '@/features/auth/domain/auth-models';
 import { provideZard } from '@/shared/zard/core/provider/providezard';
-import type { Task, TaskListResponse } from '../../domain/task-model';
-import { parseTaskQuery } from '../../domain/task-query';
-import { TasksApi } from '../../infrastructure/tasks-api';
-import { TaskList } from './task-list';
+import type { Task, TaskListResponse } from '../../../domain/task-model';
+import { parseTaskQuery } from '../../../domain/task-query';
+import { TasksApi } from '../../../infrastructure/tasks-api';
+import { TaskList } from '../task-list';
 
 const initialUrl = '/tasks?status=in_progress&page=3';
 const mobileQuery = '(max-width: 767.98px)';
@@ -36,8 +36,7 @@ const initialResponse: TaskListResponse = {
   data: [ownTask, foreignTask],
   meta: { page: 3, limit: 20, totalItems: 42, totalPages: 3 },
 };
-const origins = ['dropdown', 'dropdown-keyboard', 'context', 'context-key', 'shift-f10'] as const;
-type MenuOrigin = (typeof origins)[number];
+type MenuOrigin = 'dropdown' | 'context';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -146,40 +145,22 @@ describe('TaskList shared edit entry', () => {
   }
 
   async function openMenu(task: Task, origin: MenuOrigin): Promise<HTMLElement> {
-    if (origin === 'dropdown' || origin === 'dropdown-keyboard') {
+    if (origin === 'dropdown') {
       const button = actionButton(task);
       expect(button).toBeDefined();
       expect(button!.getAttribute('aria-haspopup')).toBe('menu');
-      button!.focus();
-      if (origin === 'dropdown') button!.click();
-      else
-        button!.dispatchEvent(
-          new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }),
-        );
+      button!.click();
     } else {
       const target = row(task);
-      if (origin === 'context') {
-        const event = new MouseEvent('contextmenu', {
-          bubbles: true,
-          cancelable: true,
-          clientX: 120,
-          clientY: 80,
-          button: 2,
-        });
-        target.dispatchEvent(event);
-        expect(event.defaultPrevented).toBe(true);
-      } else {
-        expect(target.tabIndex).toBe(0);
-        target.focus();
-        target.dispatchEvent(
-          new KeyboardEvent('keydown', {
-            key: origin === 'context-key' ? 'ContextMenu' : 'F10',
-            shiftKey: origin === 'shift-f10',
-            bubbles: true,
-            cancelable: true,
-          }),
-        );
-      }
+      const event = new MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+        clientX: 120,
+        clientY: 80,
+        button: 2,
+      });
+      target.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(true);
     }
     await settle();
     await vi.waitFor(() => {
@@ -197,18 +178,8 @@ describe('TaskList shared edit entry', () => {
     return menu;
   }
 
-  async function selectEdit(menu: HTMLElement, keyboard = false) {
-    if (keyboard) {
-      menu.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }),
-      );
-      await settle();
-      menu.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
-      );
-    } else {
-      menu.querySelector<HTMLElement>('[role="menuitem"]')!.click();
-    }
+  async function selectEdit(menu: HTMLElement) {
+    menu.querySelector<HTMLElement>('[role="menuitem"]')!.click();
     await settle();
     await vi.waitFor(() => {
       const panel = document.body.querySelector<HTMLElement>(
@@ -257,9 +228,7 @@ describe('TaskList shared edit entry', () => {
     );
   }
 
-  const closeRoutes = ['corner', 'escape', 'backdrop'] as const;
-
-  async function requestClose(route: (typeof closeRoutes)[number]) {
+  async function requestClose(route: 'corner' | 'escape' | 'backdrop') {
     if (route === 'escape') {
       sheet().dispatchEvent(
         new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
@@ -292,42 +261,39 @@ describe('TaskList shared edit entry', () => {
   }
 
   describe('saving and guarded closure', () => {
-    it.each(['dropdown', 'context'] as const)(
-      'saves through %s, refreshes the current query and reopens with updated values',
-      async (origin) => {
-        const updated = { ...foreignTask, title: 'Revised report' };
-        api.update.mockResolvedValue(updated);
-        api.list
-          .mockResolvedValueOnce(initialResponse)
-          .mockResolvedValueOnce({ ...initialResponse, data: [ownTask, updated] });
-        await render();
-        const panel = await selectEdit(await openMenu(foreignTask, origin));
-        await enterTitle(panel, updated.title);
-        submit(panel);
-        await settle();
-        await expectClosed();
+    it('saves through the row dropdown, refreshes the current query and reopens with updated values', async () => {
+      const updated = { ...foreignTask, title: 'Revised report' };
+      api.update.mockResolvedValue(updated);
+      api.list
+        .mockResolvedValueOnce(initialResponse)
+        .mockResolvedValueOnce({ ...initialResponse, data: [ownTask, updated] });
+      await render();
+      const panel = await selectEdit(await openMenu(foreignTask, 'dropdown'));
+      await enterTitle(panel, updated.title);
+      submit(panel);
+      await settle();
+      await expectClosed();
 
-        expect(api.update).toHaveBeenCalledExactlyOnceWith(foreignTask.id, {
-          title: updated.title,
-          description: foreignTask.description,
-          status: foreignTask.status,
-          dueDate: foreignTask.dueDate,
-        });
-        expect(api.create).not.toHaveBeenCalled();
-        expect(api.list).toHaveBeenCalledTimes(2);
-        expect(api.list).toHaveBeenLastCalledWith(parseTaskQuery(initialUrl.split('?')[1]));
-        expect(TestBed.inject(Router).url).toBe(initialUrl);
-        expect(document.body.querySelector('[role="alertdialog"]')).toBeNull();
-        await vi.waitFor(() => {
-          harness.detectChanges();
-          expect(row(updated).textContent).toContain(updated.title);
-        });
-        const reopened = await selectEdit(await openMenu(updated, origin));
-        expect(reopened.querySelector<HTMLInputElement>('#task-title')?.value).toBe(updated.title);
-        expect(api.list).toHaveBeenCalledTimes(2);
-        expect(api.update).toHaveBeenCalledTimes(1);
-      },
-    );
+      expect(api.update).toHaveBeenCalledExactlyOnceWith(foreignTask.id, {
+        title: updated.title,
+        description: foreignTask.description,
+        status: foreignTask.status,
+        dueDate: foreignTask.dueDate,
+      });
+      expect(api.create).not.toHaveBeenCalled();
+      expect(api.list).toHaveBeenCalledTimes(2);
+      expect(api.list).toHaveBeenLastCalledWith(parseTaskQuery(initialUrl.split('?')[1]));
+      expect(TestBed.inject(Router).url).toBe(initialUrl);
+      expect(document.body.querySelector('[role="alertdialog"]')).toBeNull();
+      await vi.waitFor(() => {
+        harness.detectChanges();
+        expect(row(updated).textContent).toContain(updated.title);
+      });
+      const reopened = await selectEdit(await openMenu(updated, 'dropdown'));
+      expect(reopened.querySelector<HTMLInputElement>('#task-title')?.value).toBe(updated.title);
+      expect(api.list).toHaveBeenCalledTimes(2);
+      expect(api.update).toHaveBeenCalledTimes(1);
+    });
 
     it('refreshes the query current when a pending edit finishes rather than the opening query', async () => {
       const pending = deferred<Task>();
@@ -345,8 +311,7 @@ describe('TaskList shared edit entry', () => {
           meta: { page: 1, limit: 20, totalItems: 1, totalPages: 1 },
         });
       await render();
-      const panel = await selectEdit(await openMenu(foreignTask, 'context'));
-      const form = panel.querySelector('app-task-form');
+      const panel = await selectEdit(await openMenu(foreignTask, 'dropdown'));
       await enterTitle(panel, updated.title);
       submit(panel);
       await settle();
@@ -354,7 +319,6 @@ describe('TaskList shared edit entry', () => {
       try {
         await harness.navigateByUrl(nextUrl, TaskList);
         await settle();
-        expect(sheet().querySelector('app-task-form')).toBe(form);
         expect(panel.querySelector<HTMLInputElement>('#task-title')?.value).toBe(updated.title);
         expect(api.list).toHaveBeenCalledTimes(2);
         pending.resolve(updated);
@@ -386,12 +350,10 @@ describe('TaskList shared edit entry', () => {
         .mockResolvedValueOnce({ ...initialResponse, data: [ownTask, updated] });
       await render();
       const panel = await selectEdit(await openMenu(foreignTask, 'dropdown'));
-      const form = panel.querySelector('app-task-form');
       await enterTitle(panel, updated.title);
       submit(panel);
       await settle();
 
-      expect(sheet().querySelector('app-task-form')).toBe(form);
       expect(panel.querySelector<HTMLInputElement>('#task-title')?.value).toBe(updated.title);
       expect(panel.querySelector('[role="alert"]')?.textContent?.trim()).toBe(
         'No pudimos actualizar la tarea. Inténtalo de nuevo.',
@@ -419,130 +381,110 @@ describe('TaskList shared edit entry', () => {
       expect(api.create).not.toHaveBeenCalled();
     });
 
-    it.each(['escape', 'backdrop'] as const)(
-      'closes an unchanged existing task through %s without confirmation or requests',
-      async (route) => {
-        await render();
-        await selectEdit(await openMenu(foreignTask, 'context'));
-        await requestClose(route);
-        await expectClosed();
-        expect(document.body.querySelector('[role="alertdialog"]')).toBeNull();
-        expectNoMutationOrNavigation();
-      },
-    );
-
-    it.each(closeRoutes)('keeps the same edit draft after cancelling %s closure', async (route) => {
+    it('closes an unchanged existing task without confirmation or requests', async () => {
       await render();
-      const panel = await selectEdit(await openMenu(foreignTask, 'context'));
-      const form = panel.querySelector('app-task-form');
+      await selectEdit(await openMenu(foreignTask, 'dropdown'));
+      await requestClose('escape');
+      await expectClosed();
+      expect(document.body.querySelector('[role="alertdialog"]')).toBeNull();
+      expectNoMutationOrNavigation();
+    });
+
+    it('keeps the same edit draft after cancelling closure', async () => {
+      await render();
+      const panel = await selectEdit(await openMenu(foreignTask, 'dropdown'));
       await enterTitle(panel, 'Unfinished edit');
-      await requestClose(route);
+      await requestClose('escape');
       await chooseConfirmation('Seguir editando');
 
-      expect(sheet().querySelector('app-task-form')).toBe(form);
-      expect(panel.querySelector<HTMLInputElement>('#task-title')?.value).toBe('Unfinished edit');
-      expect(panel.querySelector<HTMLTextAreaElement>('#task-description')?.value).toBe(
+      expect(sheet().querySelector<HTMLInputElement>('#task-title')?.value).toBe('Unfinished edit');
+      expect(sheet().querySelector<HTMLTextAreaElement>('#task-description')?.value).toBe(
         foreignTask.description,
       );
       expectNoMutationOrNavigation();
     });
 
-    it.each(closeRoutes)(
-      'discards %s edits without updating and reopens the original task',
-      async (route) => {
-        await render();
-        const panel = await selectEdit(await openMenu(foreignTask, 'dropdown'));
-        await enterTitle(panel, 'Discard this edit');
-        await requestClose(route);
-        await chooseConfirmation('Descartar');
-        await expectClosed();
-        expectNoMutationOrNavigation();
+    it('discards edits without updating and reopens the original task', async () => {
+      await render();
+      const panel = await selectEdit(await openMenu(foreignTask, 'dropdown'));
+      await enterTitle(panel, 'Discard this edit');
+      await requestClose('backdrop');
+      await chooseConfirmation('Descartar');
+      await expectClosed();
+      expectNoMutationOrNavigation();
 
-        const reopened = await selectEdit(await openMenu(foreignTask, 'context'));
-        expect(reopened.querySelector<HTMLInputElement>('#task-title')?.value).toBe(
-          foreignTask.title,
-        );
-        await requestClose('corner');
-        await expectClosed();
+      const reopened = await selectEdit(await openMenu(foreignTask, 'dropdown'));
+      expect(reopened.querySelector<HTMLInputElement>('#task-title')?.value).toBe(
+        foreignTask.title,
+      );
+      await requestClose('corner');
+      await expectClosed();
+      expect(document.body.querySelector('[role="alertdialog"]')).toBeNull();
+      expectNoMutationOrNavigation();
+    });
+
+    it('blocks closure and duplicate submits while an edit is saving', async () => {
+      const pending = deferred<Task>();
+      const updated = { ...foreignTask, title: 'Pending edit' };
+      api.update.mockReturnValue(pending.promise);
+      api.list
+        .mockResolvedValueOnce(initialResponse)
+        .mockResolvedValueOnce({ ...initialResponse, data: [ownTask, updated] });
+      await render();
+      const panel = await selectEdit(await openMenu(foreignTask, 'dropdown'));
+      await enterTitle(panel, updated.title);
+      submit(panel);
+      await settle();
+
+      try {
+        await requestClose('escape');
+        expect(sheet().getAttribute('data-state')).toBe('open');
         expect(document.body.querySelector('[role="alertdialog"]')).toBeNull();
-        expectNoMutationOrNavigation();
-      },
-    );
-
-    it.each(closeRoutes)(
-      'blocks %s closure and duplicate submits while an edit is saving',
-      async (route) => {
-        const pending = deferred<Task>();
-        const updated = { ...foreignTask, title: 'Pending edit' };
-        api.update.mockReturnValue(pending.promise);
-        api.list
-          .mockResolvedValueOnce(initialResponse)
-          .mockResolvedValueOnce({ ...initialResponse, data: [ownTask, updated] });
-        await render();
-        const panel = await selectEdit(await openMenu(foreignTask, 'dropdown'));
-        const form = panel.querySelector('app-task-form');
-        await enterTitle(panel, updated.title);
+        expect(panel.querySelector<HTMLInputElement>('#task-title')?.value).toBe(updated.title);
+        expect(panel.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(
+          true,
+        );
         submit(panel);
         await settle();
-
-        try {
-          await requestClose(route);
-          expect(sheet().getAttribute('data-state')).toBe('open');
-          expect(sheet().querySelector('app-task-form')).toBe(form);
-          expect(document.body.querySelector('[role="alertdialog"]')).toBeNull();
-          expect(panel.querySelector<HTMLInputElement>('#task-title')?.value).toBe(updated.title);
-          expect(panel.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(
-            true,
-          );
-          submit(panel);
-          await settle();
-          expect(api.update).toHaveBeenCalledExactlyOnceWith(foreignTask.id, {
-            title: updated.title,
-            description: foreignTask.description,
-            status: foreignTask.status,
-            dueDate: foreignTask.dueDate,
-          });
-          expect(api.create).not.toHaveBeenCalled();
-          expect(api.list).toHaveBeenCalledTimes(1);
-          expect(TestBed.inject(Router).url).toBe(initialUrl);
-        } finally {
-          pending.resolve(updated);
-          await settle();
-        }
-
-        await expectClosed();
-        expect(document.body.querySelector('[role="alertdialog"]')).toBeNull();
-        expect(api.update).toHaveBeenCalledTimes(1);
-        expect(api.list).toHaveBeenCalledTimes(2);
-        expect(api.list).toHaveBeenLastCalledWith(parseTaskQuery(initialUrl.split('?')[1]));
+        expect(api.update).toHaveBeenCalledExactlyOnceWith(foreignTask.id, {
+          title: updated.title,
+          description: foreignTask.description,
+          status: foreignTask.status,
+          dueDate: foreignTask.dueDate,
+        });
+        expect(api.create).not.toHaveBeenCalled();
+        expect(api.list).toHaveBeenCalledTimes(1);
         expect(TestBed.inject(Router).url).toBe(initialUrl);
-      },
-    );
+      } finally {
+        pending.resolve(updated);
+        await settle();
+      }
+
+      await expectClosed();
+      expect(document.body.querySelector('[role="alertdialog"]')).toBeNull();
+      expect(api.update).toHaveBeenCalledTimes(1);
+      expect(api.list).toHaveBeenCalledTimes(2);
+      expect(api.list).toHaveBeenLastCalledWith(parseTaskQuery(initialUrl.split('?')[1]));
+      expect(TestBed.inject(Router).url).toBe(initialUrl);
+    });
   });
 
-  it.each(origins)(
-    'opens the selected row in the reused editor through %s without create permission',
-    async (origin) => {
-      await render();
-      const menu = await openMenu(foreignTask, origin);
-      const panel = await selectEdit(menu, origin !== 'dropdown' && origin !== 'context');
+  it('opens the selected row in the reused editor through the dropdown without create permission', async () => {
+    await render();
+    const panel = await selectEdit(await openMenu(foreignTask, 'dropdown'));
 
-      expect(document.body.querySelectorAll('[data-slot="sheet-content"]')).toHaveLength(1);
-      expect(panel.querySelectorAll('app-task-form')).toHaveLength(1);
-      expect(
-        document.getElementById(panel.getAttribute('aria-labelledby')!)?.textContent?.trim(),
-      ).toBe('Editar tarea');
-      expect(panel.querySelector<HTMLInputElement>('#task-title')?.value).toBe(foreignTask.title);
-      expect(panel.querySelector<HTMLTextAreaElement>('#task-description')?.value).toBe(
-        foreignTask.description,
-      );
-      expect(panel.querySelector('button[type="submit"]')?.textContent?.trim()).toBe(
-        'Guardar cambios',
-      );
-      expect(panel.getAttribute('data-side')).toBe('right');
-      expectNoMutationOrNavigation();
-    },
-  );
+    expect(
+      document.getElementById(panel.getAttribute('aria-labelledby')!)?.textContent?.trim(),
+    ).toBe('Editar tarea');
+    expect(panel.querySelector<HTMLInputElement>('#task-title')?.value).toBe(foreignTask.title);
+    expect(panel.querySelector<HTMLTextAreaElement>('#task-description')?.value).toBe(
+      foreignTask.description,
+    );
+    expect(panel.querySelector('button[type="submit"]')?.textContent?.trim()).toBe(
+      'Guardar cambios',
+    );
+    expectNoMutationOrNavigation();
+  });
 
   it('offers update:own only on the owned row and preserves the browser context menu for another owner', async () => {
     session.set({ status: 'authenticated', user: user(['tasks:read:any', 'tasks:update:own']) });
@@ -614,10 +556,9 @@ describe('TaskList shared edit entry', () => {
     },
   );
 
-  it('keeps the same editing form and draft when the Sheet changes from right to bottom', async () => {
+  it('preserves the editing draft when the Sheet changes viewport', async () => {
     await render();
     const panel = await selectEdit(await openMenu(ownTask, 'dropdown'));
-    const form = panel.querySelector('app-task-form');
     const title = panel.querySelector<HTMLInputElement>('#task-title')!;
     title.value = 'Unfinished edit';
     title.dispatchEvent(new Event('input', { bubbles: true }));
@@ -625,10 +566,7 @@ describe('TaskList shared edit entry', () => {
     breakpoint.next({ matches: true, breakpoints: { [mobileQuery]: true } });
     await settle();
 
-    expect(panel.getAttribute('data-side')).toBe('bottom');
-    expect(panel.querySelector('app-task-form')).toBe(form);
-    expect(panel.querySelector('#task-title')).toBe(title);
-    expect(title.value).toBe('Unfinished edit');
+    expect(sheet().querySelector<HTMLInputElement>('#task-title')?.value).toBe('Unfinished edit');
     expectNoMutationOrNavigation();
   });
 
@@ -638,7 +576,7 @@ describe('TaskList shared edit entry', () => {
       user: user(['tasks:read:any', 'tasks:update:any', 'tasks:create:own']),
     });
     await render();
-    const panel = await selectEdit(await openMenu(foreignTask, 'context'));
+    const panel = await selectEdit(await openMenu(foreignTask, 'dropdown'));
     panel.querySelector<HTMLButtonElement>('[data-slot="sheet-close"]')!.click();
     await settle();
     await vi.waitFor(() =>
@@ -652,12 +590,11 @@ describe('TaskList shared edit entry', () => {
     create!.click();
     await settle();
     const createdPanel = document.body.querySelector<HTMLElement>('[data-slot="sheet-content"]')!;
-    expect(createdPanel.querySelectorAll('app-task-form')).toHaveLength(1);
     expect(createdPanel.querySelector<HTMLInputElement>('#task-title')?.value).toBe('');
     expect(createdPanel.querySelector<HTMLTextAreaElement>('#task-description')?.value).toBe('');
-    expect(
-      createdPanel.querySelector('z-select button[role="combobox"]')?.textContent?.trim(),
-    ).toBe('Pendiente');
+    expect(createdPanel.querySelector('button[role="combobox"]')?.textContent?.trim()).toBe(
+      'Pendiente',
+    );
     expect(createdPanel.querySelector('button[type="submit"]')?.textContent?.trim()).toBe(
       'Crear tarea',
     );

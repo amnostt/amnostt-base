@@ -8,7 +8,7 @@ import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SessionStore } from '@/features/auth/application/session-store';
 import { provideZard } from '@/shared/zard/core/provider/providezard';
-import { TaskList } from './task-list';
+import { TaskList } from '../task-list';
 
 describe('TaskList HTTP and session integration', () => {
   let http: HttpTestingController;

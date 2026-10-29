@@ -1,0 +1,37 @@
+@if (meta(); as responseMeta) {
+  @if (showTotal()) {
+    <p class="text-muted-foreground text-sm">Total: {{ responseMeta.totalItems }}</p>
+  }
+}
+
+<div role="group" aria-label="Tareas por página" class="flex items-center gap-2">
+  <span class="text-sm font-medium">Tareas por página</span>
+
+  <z-select
+    class="w-24"
+    [zValue]="limit().toString()"
+    (zSelectionChange)="limitChange.emit($event)"
+  >
+    <z-select-group>
+      @for (size of pageSizeOptions; track size) {
+        <z-select-item [zValue]="size.toString()">
+          {{ size }}
+        </z-select-item>
+      }
+    </z-select-group>
+  </z-select>
+</div>
+
+@if (meta(); as responseMeta) {
+  <z-pagination
+    class="mx-0 w-auto"
+    zAriaLabel="Paginación de tareas"
+    zPreviousText="Anterior"
+    zNextText="Siguiente"
+    zSize="icon-sm"
+    [zTotal]="responseMeta.totalPages"
+    [zPageIndex]="page()"
+    [zDisabled]="!ready() || responseMeta.totalPages === 0"
+    (zPageIndexChange)="pageChange.emit($event)"
+  />
+}

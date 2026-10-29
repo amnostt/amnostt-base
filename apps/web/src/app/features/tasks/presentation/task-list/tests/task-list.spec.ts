@@ -4,10 +4,10 @@ import { BehaviorSubject } from 'rxjs';
 import { vi } from 'vitest';
 import { SessionStore } from '@/features/auth/application/session-store';
 import { provideZard } from '@/shared/zard/core/provider/providezard';
-import type { TaskListResponse } from '../../domain/task-model';
-import { TASK_QUERY_DEFAULTS, type TaskQueryState } from '../../domain/task-query';
-import { TasksApi } from '../../infrastructure/tasks-api';
-import { TaskList } from './task-list';
+import type { TaskListResponse } from '../../../domain/task-model';
+import { TASK_QUERY_DEFAULTS, type TaskQueryState } from '../../../domain/task-query';
+import { TasksApi } from '../../../infrastructure/tasks-api';
+import { TaskList } from '../task-list';
 
 describe('TaskList', () => {
   let fixture: ComponentFixture<TaskList>;

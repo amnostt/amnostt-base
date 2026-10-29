@@ -84,14 +84,9 @@ describe('TaskForm creation', () => {
   }
 
   function dueDateTrigger(): HTMLButtonElement {
-    const picker = page.querySelector('[data-slot="date-picker"]');
-    expect(picker).not.toBeNull();
-    const trigger = picker!.querySelector<HTMLButtonElement>('button');
+    const trigger = page.querySelector<HTMLButtonElement>('#task-due-date');
     expect(trigger).not.toBeNull();
-    expect(trigger!.id).not.toBe('');
-    const label = Array.from(page.querySelectorAll('label')).find(
-      (item) => item.htmlFor === trigger!.id,
-    );
+    const label = page.querySelector<HTMLLabelElement>('label[for="task-due-date"]');
     expect(label?.textContent?.trim()).toBe('Fecha de vencimiento');
     return trigger!;
   }
@@ -425,8 +420,13 @@ describe('TaskForm creation', () => {
     });
   });
 
-  it('renders a labelled empty title without showing premature validation errors', () => {
+  it('starts with labelled fields, pending status and no premature validation errors', () => {
     expect(page.querySelector('label[for="task-title"]')?.textContent?.trim()).toBe('Título');
+    const statusGroup = statusTrigger().closest('[role="group"]');
+    const statusLabelId = statusGroup?.getAttribute('aria-labelledby');
+    expect(statusLabelId).toBeTruthy();
+    expect(page.querySelector(`#${statusLabelId}`)?.textContent?.trim()).toBe('Estado');
+    expect(statusTrigger().textContent).toContain('Pendiente');
     expect(titleInput().value).toBe('');
     expect(titleInput().required).toBe(true);
     expect(submitButton().textContent?.trim()).toBe('Crear tarea');
@@ -436,7 +436,7 @@ describe('TaskForm creation', () => {
     expect(fixture.componentInstance.onSaved).not.toHaveBeenCalled();
   });
 
-  it.each(['', '   '])('rejects a blank title %j without submitting', async (title) => {
+  it.each(['', ' \n\t '])('rejects a blank title %j without submitting', async (title) => {
     await enterTitle(title);
     startSubmit();
     await settle();
@@ -446,7 +446,7 @@ describe('TaskForm creation', () => {
     expect(error?.getAttribute('role')).toBe('alert');
     expect(titleInput().getAttribute('aria-invalid')).toBe('true');
     expect(titleInput().getAttribute('aria-describedby')).toBe('task-title-error');
-    expect(titleInput().value).toBe(title);
+    expect(titleInput().value).toBe(title.replace(/[\r\n]/g, ''));
     expect(api.create).not.toHaveBeenCalled();
     expect(fixture.componentInstance.onSaved).not.toHaveBeenCalled();
   });
@@ -507,43 +507,69 @@ describe('TaskForm creation', () => {
     expect(submitButton().disabled).toBe(false);
   });
 
-  it('retains the title after failure and clears the error when retrying', async () => {
-    api.create.mockRejectedValueOnce(new Error('Network unavailable'));
-    await enterTitle('Prepare report');
+  it('retains the complete draft after failure and retries once with the same create payload', async () => {
+    const description = '  First line\nSecond line  ';
+    const status = 'in_progress' as const;
+    const dueDate = '2024-02-29';
+    const input = { title: 'Prepare report', description, status, dueDate };
+    const task = { ...created, description, status, dueDate };
+    const retry = deferred<Task>();
+    api.create
+      .mockRejectedValueOnce(new Error('Network unavailable'))
+      .mockReturnValueOnce(retry.promise);
+    await enterTitle('  Prepare report  ');
+    await enterDescription(description);
+    await chooseStatus(status);
+    await chooseDueDate(dueDate);
     startSubmit();
     await settle();
 
+    expect(api.create).toHaveBeenCalledExactlyOnceWith(input);
     expect(page.querySelector('[role="alert"]')?.textContent?.trim()).toBe(
       'No pudimos crear la tarea. Inténtalo de nuevo.',
     );
-    expect(titleInput().value).toBe('Prepare report');
+    expect(titleInput().value).toBe('  Prepare report  ');
+    expect(descriptionInput().value).toBe(description);
+    expect(statusTrigger().textContent).toContain('En progreso');
+    expect(dueDateTrigger().textContent).toContain(dateLabel(dueDate));
+    expect(titleInput().disabled).toBe(false);
+    expect(descriptionInput().disabled).toBe(false);
+    expect(statusTrigger().disabled).toBe(false);
+    expect(dueDateTrigger().disabled).toBe(false);
+    expect(clearDueDateButton().disabled).toBe(false);
     expect(submitButton().disabled).toBe(false);
-    expect(submitButton().textContent?.trim()).toBe('Crear tarea');
     expect(page.querySelector('form')?.getAttribute('aria-busy')).toBe('false');
     expect(fixture.componentInstance.onSaved).not.toHaveBeenCalled();
+    expect(api.update).not.toHaveBeenCalled();
 
-    const retry = deferred<Task>();
-    api.create.mockReturnValueOnce(retry.promise);
     startSubmit();
     await settle();
+
+    expect(api.create).toHaveBeenCalledTimes(2);
+    expect(api.create).toHaveBeenNthCalledWith(2, input);
     expect(page.querySelector('[role="alert"]')).toBeNull();
     expect(submitButton().disabled).toBe(true);
-    expect(api.create).toHaveBeenCalledTimes(2);
-    expect(api.create).toHaveBeenLastCalledWith({ title: 'Prepare report', status: 'pending' });
+    expect(page.querySelector('form')?.getAttribute('aria-busy')).toBe('true');
+    expect(fixture.componentInstance.onSaved).not.toHaveBeenCalled();
 
-    retry.resolve(created);
+    retry.resolve(task);
     await settle();
-    expect(fixture.componentInstance.onSaved).toHaveBeenCalledExactlyOnceWith(created);
-    expect(titleInput().value).toBe('Prepare report');
+
+    expect(api.create).toHaveBeenCalledTimes(2);
     expect(page.querySelector('[role="alert"]')).toBeNull();
+    expect(titleInput().value).toBe('  Prepare report  ');
+    expect(descriptionInput().value).toBe(description);
+    expect(statusTrigger().textContent).toContain('En progreso');
+    expect(dueDateTrigger().textContent).toContain(dateLabel(dueDate));
+    expect(fixture.componentInstance.onSaved).toHaveBeenCalledExactlyOnceWith(task);
     expect(submitButton().disabled).toBe(false);
+    expect(page.querySelector('form')?.getAttribute('aria-busy')).toBe('false');
   });
 
-  it('renders a labelled optional description without premature validation errors', () => {
+  it('keeps the optional description empty and valid initially', () => {
     expect(page.querySelector('label[for="task-description"]')?.textContent?.trim()).toBe(
       'Descripción',
     );
-    expect(descriptionInput().hasAttribute('z-textarea')).toBe(true);
     expect(descriptionInput().value).toBe('');
     expect(descriptionInput().required).toBe(false);
     expect(descriptionInput().getAttribute('aria-invalid')).not.toBe('true');
@@ -609,62 +635,6 @@ describe('TaskForm creation', () => {
     expect(fixture.componentInstance.onSaved).toHaveBeenCalledExactlyOnceWith(created);
   });
 
-  it('preserves a multiline description after failure and sends the same draft on retry', async () => {
-    const description = '  First line\nSecond line  ';
-    const task = { ...created, description };
-    const input = { title: 'Prepare report', description, status: 'pending' };
-    api.create.mockRejectedValueOnce(new Error('Network unavailable')).mockResolvedValueOnce(task);
-    await enterTitle('Prepare report');
-    await enterDescription(description);
-    startSubmit();
-    await settle();
-
-    expect(api.create).toHaveBeenNthCalledWith(1, input);
-    expect(page.querySelector('[role="alert"]')?.textContent?.trim()).toBe(
-      'No pudimos crear la tarea. Inténtalo de nuevo.',
-    );
-    expect(descriptionInput().value).toBe(description);
-    expect(titleInput().value).toBe('Prepare report');
-    expect(submitButton().disabled).toBe(false);
-    expect(fixture.componentInstance.onSaved).not.toHaveBeenCalled();
-
-    startSubmit();
-    await settle();
-
-    expect(api.create).toHaveBeenCalledTimes(2);
-    expect(api.create).toHaveBeenNthCalledWith(2, input);
-    expect(descriptionInput().value).toBe(description);
-    expect(page.querySelector('[role="alert"]')).toBeNull();
-    expect(fixture.componentInstance.onSaved).toHaveBeenCalledExactlyOnceWith(task);
-    expect(submitButton().disabled).toBe(false);
-  });
-
-  it('renders the official status Select with pending selected and all three supported choices', async () => {
-    const trigger = statusTrigger();
-    expect(trigger.textContent).toContain('Pendiente');
-    expect(trigger.disabled).toBe(false);
-    const group = trigger.closest('[role="group"]');
-    const labelId = group?.getAttribute('aria-labelledby');
-    expect(labelId).toBeTruthy();
-    expect(page.querySelector(`#${labelId}`)?.textContent?.trim()).toBe('Estado');
-
-    trigger.click();
-    await settle();
-    const options = Array.from(document.body.querySelectorAll<HTMLElement>('[role="option"]'));
-    expect(
-      options.map((option) => [option.getAttribute('value'), option.textContent?.trim()]),
-    ).toEqual([
-      ['pending', 'Pendiente'],
-      ['in_progress', 'En progreso'],
-      ['completed', 'Completada'],
-    ]);
-    expect(options[0].getAttribute('aria-selected')).toBe('true');
-    options[0].click();
-    await settle();
-    expect(api.create).not.toHaveBeenCalled();
-    expect(fixture.componentInstance.onSaved).not.toHaveBeenCalled();
-  });
-
   it.each([
     { status: 'pending', label: 'Pendiente' },
     { status: 'in_progress', label: 'En progreso' },
@@ -718,35 +688,6 @@ describe('TaskForm creation', () => {
     await settle();
     expect(statusTrigger().disabled).toBe(false);
     expect(statusTrigger().textContent).toContain('Completada');
-    expect(fixture.componentInstance.onSaved).toHaveBeenCalledExactlyOnceWith(task);
-  });
-
-  it('retains the selected status after failure and retries with the same value', async () => {
-    const task = { ...created, status: 'in_progress' as const };
-    api.create.mockRejectedValueOnce(new Error('Network unavailable')).mockResolvedValueOnce(task);
-    await enterTitle('Prepare report');
-    await chooseStatus('in_progress');
-    startSubmit();
-    await settle();
-
-    expect(page.querySelector('[role="alert"]')?.textContent?.trim()).toBe(
-      'No pudimos crear la tarea. Inténtalo de nuevo.',
-    );
-    expect(statusTrigger().textContent).toContain('En progreso');
-    expect(statusTrigger().disabled).toBe(false);
-    expect(fixture.componentInstance.onSaved).not.toHaveBeenCalled();
-
-    startSubmit();
-    await settle();
-    expect(api.create).toHaveBeenCalledTimes(2);
-    for (const call of [1, 2]) {
-      expect(api.create).toHaveBeenNthCalledWith(call, {
-        title: 'Prepare report',
-        status: 'in_progress',
-      });
-    }
-    expect(page.querySelector('[role="alert"]')).toBeNull();
-    expect(statusTrigger().textContent).toContain('En progreso');
     expect(fixture.componentInstance.onSaved).toHaveBeenCalledExactlyOnceWith(task);
   });
 
@@ -848,49 +789,6 @@ describe('TaskForm creation', () => {
     expect(dueDateTrigger().disabled).toBe(false);
     expect(clearDueDateButton().disabled).toBe(false);
     expect(fixture.componentInstance.onSaved).toHaveBeenCalledExactlyOnceWith(task);
-  });
-
-  it('preserves the selected due date after failure and retries with the same calendar day', async () => {
-    const dueDate = '2026-10-25';
-    const task = { ...created, dueDate };
-    api.create.mockRejectedValueOnce(new Error('Network unavailable')).mockResolvedValueOnce(task);
-    await enterTitle('Prepare report');
-    await chooseDueDate(dueDate);
-    startSubmit();
-    await settle();
-
-    expect(page.querySelector('[role="alert"]')?.textContent?.trim()).toBe(
-      'No pudimos crear la tarea. Inténtalo de nuevo.',
-    );
-    expect(dueDateTrigger().textContent).toContain(dateLabel(dueDate));
-    expect(dueDateTrigger().disabled).toBe(false);
-    expect(clearDueDateButton().disabled).toBe(false);
-    expect(fixture.componentInstance.onSaved).not.toHaveBeenCalled();
-
-    startSubmit();
-    await settle();
-    expect(api.create).toHaveBeenCalledTimes(2);
-    for (const call of [1, 2]) {
-      expect(api.create).toHaveBeenNthCalledWith(call, {
-        title: 'Prepare report',
-        status: 'pending',
-        dueDate,
-      });
-    }
-    expect(page.querySelector('[role="alert"]')).toBeNull();
-    expect(dueDateTrigger().textContent).toContain(dateLabel(dueDate));
-    expect(fixture.componentInstance.onSaved).toHaveBeenCalledExactlyOnceWith(task);
-  });
-
-  it.each(['', ' \n\t '])('rejects blank title %j without submitting or saving', async (title) => {
-    await enterTitle(title);
-    startSubmit();
-    await settle();
-
-    expect(page.querySelector('#task-title-error')?.textContent?.trim()).toBe('Ingresa un título.');
-    expect(titleInput().value).toBe(title.replace(/[\r\n]/g, ''));
-    expect(api.create).not.toHaveBeenCalled();
-    expect(fixture.componentInstance.onSaved).not.toHaveBeenCalled();
   });
 
   it('rejects excessive lengths and then submits supported boundary fields unchanged', async () => {

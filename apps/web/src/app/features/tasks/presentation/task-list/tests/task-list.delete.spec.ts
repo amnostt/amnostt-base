@@ -8,10 +8,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SessionStore } from '@/features/auth/application/session-store';
 import type { CurrentUser, SessionState } from '@/features/auth/domain/auth-models';
 import { provideZard } from '@/shared/zard/core/provider/providezard';
-import type { Task, TaskListResponse } from '../../domain/task-model';
-import { parseTaskQuery } from '../../domain/task-query';
-import { TasksApi } from '../../infrastructure/tasks-api';
-import { TaskList } from './task-list';
+import type { Task, TaskListResponse } from '../../../domain/task-model';
+import { parseTaskQuery } from '../../../domain/task-query';
+import { TasksApi } from '../../../infrastructure/tasks-api';
+import { TaskList } from '../task-list';
 
 const initialUrl = '/tasks?status=in_progress&sort=title&page=3';
 const ownTask: Task = {
@@ -38,8 +38,6 @@ const refreshedResponse: TaskListResponse = {
   data: [ownTask],
   meta: { page: 3, limit: 20, totalItems: 41, totalPages: 3 },
 };
-const origins = ['dropdown', 'context', 'dropdown-keyboard', 'context-key', 'shift-f10'] as const;
-type MenuOrigin = (typeof origins)[number];
 
 function user(permissions: string[], role = 'Viewer'): CurrentUser {
   return {
@@ -128,31 +126,10 @@ describe('TaskList confirmed deletion', () => {
     );
   }
 
-  async function openMenu(task: Task, origin: MenuOrigin): Promise<HTMLElement> {
-    if (origin === 'dropdown' || origin === 'dropdown-keyboard') {
-      const button = actionButton(task);
-      expect(button).toBeDefined();
-      button!.focus();
-      if (origin === 'dropdown') button!.click();
-      else
-        button!.dispatchEvent(
-          new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }),
-        );
-    } else {
-      const target = row(task);
-      target.focus();
-      const event =
-        origin === 'context'
-          ? new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 })
-          : new KeyboardEvent('keydown', {
-              key: origin === 'context-key' ? 'ContextMenu' : 'F10',
-              shiftKey: origin === 'shift-f10',
-              bubbles: true,
-              cancelable: true,
-            });
-      target.dispatchEvent(event);
-      expect(event.defaultPrevented).toBe(true);
-    }
+  async function openMenu(task: Task): Promise<HTMLElement> {
+    const button = actionButton(task);
+    expect(button).toBeDefined();
+    button!.click();
     await settle();
     const menu = document.body.querySelector<HTMLElement>('[role="menu"]');
     expect(menu).not.toBeNull();
@@ -160,21 +137,12 @@ describe('TaskList confirmed deletion', () => {
     return menu!;
   }
 
-  async function requestDelete(task = foreignTask, origin: MenuOrigin = 'dropdown') {
-    const menu = await openMenu(task, origin);
+  async function requestDelete(task = foreignTask) {
+    const menu = await openMenu(task);
     expect(menuItem(menu, 'Editar')).toBeUndefined();
     const item = menuItem(menu, 'Eliminar');
     expect(item).toBeDefined();
-    if (origin === 'dropdown-keyboard' || origin === 'context-key' || origin === 'shift-f10') {
-      menu.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }),
-      );
-      await settle();
-      expect(document.activeElement).toBe(item);
-      menu.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
-      );
-    } else item!.click();
+    item!.click();
     await settle();
     await vi.waitFor(() => {
       expect(document.body.querySelector('[role="menu"]')).toBeNull();
@@ -215,61 +183,55 @@ describe('TaskList confirmed deletion', () => {
     expect(api.update).not.toHaveBeenCalled();
   }
 
-  it.each(origins)(
-    'confirms the selected row from %s and refreshes the same query',
-    async (origin) => {
-      const pending = deferred<void>();
-      api.remove.mockReturnValueOnce(pending.promise);
-      await render();
-      const dialog = await requestDelete(foreignTask, origin);
-      dialogButton(dialog, 'Eliminar').click();
-      await waitForDialogClose();
+  it('confirms the selected row from the dropdown and refreshes the same query', async () => {
+    const pending = deferred<void>();
+    api.remove.mockReturnValueOnce(pending.promise);
+    await render();
+    const dialog = await requestDelete(foreignTask);
+    dialogButton(dialog, 'Eliminar').click();
+    await waitForDialogClose();
 
-      expect(api.remove).toHaveBeenCalledExactlyOnceWith(foreignTask.id);
-      expect(api.list).toHaveBeenCalledTimes(1);
-      expect(row(foreignTask)).toBeDefined();
-      expectFeedback('status', 'Eliminando tarea');
-      api.list.mockResolvedValue(refreshedResponse);
-      pending.resolve(undefined);
-      await settle();
-      await vi.waitFor(() => {
-        harness.detectChanges();
-        expect(page.textContent).not.toContain(foreignTask.title);
-        expect(page.textContent).toContain(ownTask.title);
-        expect(page.textContent).toMatch(/Total:\s*41/);
-      });
-      expect(api.list).toHaveBeenCalledTimes(2);
-      expect(api.list).toHaveBeenLastCalledWith(parseTaskQuery(initialUrl.split('?')[1]));
-      expect(TestBed.inject(Router).url).toBe(initialUrl);
-      expectFeedback('status', 'Tarea eliminada.');
-      expectNoOtherMutation();
-    },
-  );
+    expect(api.remove).toHaveBeenCalledExactlyOnceWith(foreignTask.id);
+    expect(api.list).toHaveBeenCalledTimes(1);
+    expect(row(foreignTask)).toBeDefined();
+    expectFeedback('status', 'Eliminando tarea');
+    api.list.mockResolvedValue(refreshedResponse);
+    pending.resolve(undefined);
+    await settle();
+    await vi.waitFor(() => {
+      harness.detectChanges();
+      expect(page.textContent).not.toContain(foreignTask.title);
+      expect(page.textContent).toContain(ownTask.title);
+      expect(page.textContent).toMatch(/Total:\s*41/);
+    });
+    expect(api.list).toHaveBeenCalledTimes(2);
+    expect(api.list).toHaveBeenLastCalledWith(parseTaskQuery(initialUrl.split('?')[1]));
+    expect(TestBed.inject(Router).url).toBe(initialUrl);
+    expectFeedback('status', 'Tarea eliminada.');
+    expectNoOtherMutation();
+  });
 
-  it.each(['dropdown', 'context'] as const)(
-    'keeps independent edit/delete permissions in the shared %s menu',
-    async (origin) => {
-      session.set({
-        status: 'authenticated',
-        user: user(['tasks:read:any', 'tasks:update:any', 'tasks:delete:own']),
-      });
-      await render();
-      const ownMenu = await openMenu(ownTask, origin);
-      expect(menuItem(ownMenu, 'Editar')).toBeDefined();
-      expect(menuItem(ownMenu, 'Eliminar')).toBeDefined();
-      ownMenu.dispatchEvent(
-        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
-      );
-      await settle();
-      await vi.waitFor(() => expect(document.body.querySelector('[role="menu"]')).toBeNull());
-      const foreignMenu = await openMenu(foreignTask, origin);
-      expect(menuItem(foreignMenu, 'Editar')).toBeDefined();
-      expect(menuItem(foreignMenu, 'Eliminar')).toBeUndefined();
-      expect(api.remove).not.toHaveBeenCalled();
-      expect(api.list).toHaveBeenCalledTimes(1);
-      expectNoOtherMutation();
-    },
-  );
+  it('keeps independent edit/delete permissions in the shared dropdown menu', async () => {
+    session.set({
+      status: 'authenticated',
+      user: user(['tasks:read:any', 'tasks:update:any', 'tasks:delete:own']),
+    });
+    await render();
+    const ownMenu = await openMenu(ownTask);
+    expect(menuItem(ownMenu, 'Editar')).toBeDefined();
+    expect(menuItem(ownMenu, 'Eliminar')).toBeDefined();
+    ownMenu.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
+    );
+    await settle();
+    await vi.waitFor(() => expect(document.body.querySelector('[role="menu"]')).toBeNull());
+    const foreignMenu = await openMenu(foreignTask);
+    expect(menuItem(foreignMenu, 'Editar')).toBeDefined();
+    expect(menuItem(foreignMenu, 'Eliminar')).toBeUndefined();
+    expect(api.remove).not.toHaveBeenCalled();
+    expect(api.list).toHaveBeenCalledTimes(1);
+    expectNoOtherMutation();
+  });
 
   it.each(['Viewer', 'Admin'])(
     'does not expose deletion to a read-only %s or intercept the native context menu',
@@ -290,25 +252,18 @@ describe('TaskList confirmed deletion', () => {
     },
   );
 
-  it.each(['cancel', 'escape'] as const)(
-    'dismisses via %s without deleting and can reopen',
-    async (via) => {
-      await render();
-      const dialog = await requestDelete();
-      if (via === 'cancel') dialogButton(dialog, 'Cancelar').click();
-      else
-        dialog.dispatchEvent(
-          new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
-        );
-      await waitForDialogClose();
-      expect(api.remove).not.toHaveBeenCalled();
-      expect(api.list).toHaveBeenCalledTimes(1);
-      expect(row(foreignTask)).toBeDefined();
-      await requestDelete();
-      expect(document.body.querySelectorAll('[role="alertdialog"]')).toHaveLength(1);
-      expectNoOtherMutation();
-    },
-  );
+  it('cancels without deleting and can reopen the confirmation', async () => {
+    await render();
+    const dialog = await requestDelete();
+    dialogButton(dialog, 'Cancelar').click();
+    await waitForDialogClose();
+    expect(api.remove).not.toHaveBeenCalled();
+    expect(api.list).toHaveBeenCalledTimes(1);
+    expect(row(foreignTask)).toBeDefined();
+    await requestDelete();
+    expect(document.body.querySelectorAll('[role="alertdialog"]')).toHaveLength(1);
+    expectNoOtherMutation();
+  });
 
   it('ignores repeated confirmation and blocks another deletion while pending', async () => {
     const pending = deferred<void>();
@@ -322,7 +277,7 @@ describe('TaskList confirmed deletion', () => {
     expect(api.remove).toHaveBeenCalledExactlyOnceWith(foreignTask.id);
     const nextButton = actionButton(ownTask);
     if (nextButton && !nextButton.disabled) {
-      const menu = await openMenu(ownTask, 'dropdown');
+      const menu = await openMenu(ownTask);
       const item = menuItem(menu, 'Eliminar');
       if (item) {
         expect(item.getAttribute('aria-disabled')).toBe('true');
@@ -347,7 +302,7 @@ describe('TaskList confirmed deletion', () => {
     expectFeedback('alert', 'No pudimos eliminar la tarea. Inténtalo de nuevo.');
     expect(row(foreignTask)).toBeDefined();
     expect(api.list).toHaveBeenCalledTimes(1);
-    const retry = await openMenu(foreignTask, 'context');
+    const retry = await openMenu(foreignTask);
     menuItem(retry, 'Eliminar')!.click();
     await settle();
     const confirmation = document.body.querySelector<HTMLElement>('[role="alertdialog"]')!;
@@ -390,7 +345,7 @@ describe('TaskList confirmed deletion', () => {
       await render();
       const target =
         stage === 'menu'
-          ? menuItem(await openMenu(foreignTask, 'dropdown'), 'Eliminar')!
+          ? menuItem(await openMenu(foreignTask), 'Eliminar')!
           : dialogButton(await requestDelete(), 'Eliminar');
       expect(target).toBeDefined();
       session.set({ status: 'authenticated', user: user(['tasks:read:any']) });

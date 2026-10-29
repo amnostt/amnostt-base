@@ -1,0 +1,21 @@
+<z-sheet
+  #createSheet="zSheet"
+  [zVisible]="visible()"
+  (zVisibleChange)="onVisibleChange($event, createSheet)"
+  [zSide]="isMobile() ? 'bottom' : 'right'"
+>
+  <z-sheet-header>
+    <z-sheet-title>
+      {{ task() ? 'Editar tarea' : 'Crear tarea' }}
+    </z-sheet-title>
+    <z-sheet-description>
+      {{ task() ? 'Actualiza los datos de la tarea.' : 'Completa los datos para crear una tarea' }}
+    </z-sheet-description>
+  </z-sheet-header>
+
+  <div class="px-6 pb-6">
+    @if (visible()) {
+      <app-task-form [task]="task()" (saved)="saved.emit()" />
+    }
+  </div>
+</z-sheet>

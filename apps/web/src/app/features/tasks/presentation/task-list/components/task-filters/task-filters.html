@@ -1,0 +1,63 @@
+<section
+  class="grid shrink-0 grid-cols-1 gap-4 @min-[44rem]:grid-cols-[minmax(0,1fr)_11rem_17rem]"
+  aria-label="Filtros de tareas"
+>
+  <div z-field class="min-w-0 w-full @min-[44rem]:max-w-sm">
+    <label z-field-label for="task-search">Buscar tareas</label>
+    <input
+      z-input
+      id="task-search"
+      type="search"
+      placeholder="Buscar tareas..."
+      [value]="searchText()"
+      (input)="onSearchInput($event)"
+    />
+  </div>
+
+  <div z-field class="min-w-0 w-full" aria-labelledby="task-status-label">
+    <label z-field-label id="task-status-label" for="task-status">Estado</label>
+    <z-select
+      id="task-status"
+      [zValue]="query().status || 'all'"
+      (zSelectionChange)="statusChange.emit($event)"
+    >
+      <z-select-group>
+        <z-select-item zValue="all">Todos los estados</z-select-item>
+        <z-select-item zValue="pending">Pendiente</z-select-item>
+        <z-select-item zValue="in_progress">En progreso</z-select-item>
+        <z-select-item zValue="completed">Completada</z-select-item>
+      </z-select-group>
+    </z-select>
+  </div>
+
+  <div z-field class="min-w-0 w-full">
+    <label z-field-label for="task-due-date">Vencimiento</label>
+
+    <div class="flex min-w-0 items-center gap-2">
+      <z-date-picker
+        class="min-w-0 flex-1"
+        zId="task-due-date"
+        zMode="single"
+        zLocale="es"
+        zFormat="longDate"
+        zIcon="calendar"
+        zPlaceholder="Todas las fechas"
+        [value]="dueDateValue()"
+        (dateChange)="dueDateChange.emit($event)"
+      />
+
+      <button
+        z-button
+        type="button"
+        zType="ghost"
+        zSize="icon-sm"
+        class="shrink-0"
+        aria-label="Limpiar vencimiento"
+        [zDisabled]="!query().dueDate"
+        (click)="dueDateChange.emit(null)"
+      >
+        <ng-icon name="lucideEraser" aria-hidden="true" />
+      </button>
+    </div>
+  </div>
+</section>

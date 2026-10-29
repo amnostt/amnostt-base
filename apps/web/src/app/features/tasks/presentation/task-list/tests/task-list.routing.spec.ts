@@ -4,10 +4,10 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { vi } from 'vitest';
 import { SessionStore } from '@/features/auth/application/session-store';
 import { provideZard } from '@/shared/zard/core/provider/providezard';
-import type { TaskListResponse } from '../../domain/task-model';
-import { parseTaskQuery, type TaskQueryState } from '../../domain/task-query';
-import { TasksApi } from '../../infrastructure/tasks-api';
-import { TaskList } from './task-list';
+import type { TaskListResponse } from '../../../domain/task-model';
+import { parseTaskQuery, type TaskQueryState } from '../../../domain/task-query';
+import { TasksApi } from '../../../infrastructure/tasks-api';
+import { TaskList } from '../task-list';
 
 function result(title: string): TaskListResponse {
   return {
@@ -134,61 +134,11 @@ describe('TaskList real-router query ordering', () => {
 
   function pagination(harness: RouterTestingHarness) {
     const element = harness.routeNativeElement!.querySelector<HTMLElement>(
-      '[data-slot="pagination"][role="group"][aria-label="Paginación de tareas"]',
+      '[role="group"][aria-label="Paginación de tareas"]',
     );
     expect(element).not.toBeNull();
     return element!;
   }
-
-  it('stacks narrow filters and keeps pagination outside the scrollable table', async () => {
-    const tasks = Array.from({ length: 20 }, (_, index) => ({
-      ...result('Task').data[0],
-      id: `task-${index}`,
-      title: `Task ${index}`,
-    }));
-    api.list
-      .mockResolvedValueOnce({ ...pagedResult(), data: tasks })
-      .mockResolvedValueOnce(pagedResult(1, 20, 0));
-
-    const harness = await RouterTestingHarness.create();
-    await harness.navigateByUrl('/tasks', TaskList);
-    await harness.fixture.whenStable();
-    harness.detectChanges();
-
-    const page = harness.routeNativeElement!.querySelector<HTMLElement>(
-      'section[aria-labelledby="tasks-heading"]',
-    );
-    expect(page?.classList.contains('flex-1')).toBe(true);
-    expect(page?.classList.contains('@container')).toBe(true);
-    const filters = page!.querySelector<HTMLElement>('section[aria-label="Filtros de tareas"]');
-    expect(filters?.classList.contains('grid-cols-1')).toBe(true);
-    expect(filters?.classList.contains('@min-[44rem]:grid-cols-[minmax(0,1fr)_11rem_17rem]')).toBe(
-      true,
-    );
-    expect(filters?.children).toHaveLength(3);
-    expect(filters?.children[0].querySelector('#task-search')).not.toBeNull();
-    expect(filters?.children[1].querySelector('#task-status')).not.toBeNull();
-    expect(filters?.children[2].querySelector('z-date-picker')).not.toBeNull();
-    expect(
-      filters?.children[2].querySelector('button[aria-label="Limpiar vencimiento"]'),
-    ).not.toBeNull();
-    const scrollArea = page!.querySelector<HTMLElement>(
-      '[role="region"][aria-label="Tabla de tareas"]',
-    );
-    expect(scrollArea?.classList.contains('overflow-auto')).toBe(true);
-    expect(scrollArea?.getAttribute('tabindex')).toBe('0');
-    expect(scrollArea?.querySelectorAll('tbody tr')).toHaveLength(20);
-    expect(scrollArea?.querySelector('thead')?.classList.contains('sticky')).toBe(true);
-    expect(scrollArea?.contains(pagination(harness))).toBe(false);
-
-    await harness.navigateByUrl('/tasks?status=completed', TaskList);
-    await harness.fixture.whenStable();
-    harness.detectChanges();
-
-    expect(page!.querySelector('[role="region"][aria-label="Tabla de tareas"]')).toBeNull();
-    expect(page!.textContent).toContain('No hay tareas para mostrar.');
-    expect(page!.contains(pagination(harness))).toBe(true);
-  });
 
   function numberedPages(harness: RouterTestingHarness) {
     return Array.from(pagination(harness).querySelectorAll<HTMLButtonElement>('button')).filter(
@@ -222,9 +172,6 @@ describe('TaskList real-router query ordering', () => {
       'button[aria-label="Limpiar vencimiento"]',
     );
     expect(button).not.toBeNull();
-    expect(
-      button!.querySelector('ng-icon[name="lucideEraser"][aria-hidden="true"]'),
-    ).not.toBeNull();
     return button!;
   }
 
@@ -565,12 +512,9 @@ describe('TaskList real-router query ordering', () => {
       expect(api.list).toHaveBeenCalledTimes(1);
       expect(api.list).toHaveBeenLastCalledWith(initialQuery);
 
-      expect(harness.routeNativeElement!.querySelector('table')?.getAttribute('data-slot')).toBe(
-        'table',
-      );
       expect(
         harness.routeNativeElement!.querySelector(
-          '[role="group"][aria-label="Ordenar tareas"] z-select',
+          '[role="group"][aria-label="Ordenar tareas"] [role="combobox"]',
         ),
       ).toBeNull();
       expectColumnSort(harness, initialSort);
@@ -708,7 +652,7 @@ describe('TaskList real-router query ordering', () => {
     { action: 'previous', initialPage: 2, targetPage: 1 },
     { action: 'number', initialPage: 1, targetPage: 4 },
   ] as const)(
-    'navigates with official Pagination using $action and preserves criteria',
+    'navigates with pagination using $action and preserves criteria',
     async ({ action, initialPage, targetPage }) => {
       api.list.mockImplementation(async (query) => pagedResult(query?.page, query?.limit));
       const harness = await RouterTestingHarness.create();

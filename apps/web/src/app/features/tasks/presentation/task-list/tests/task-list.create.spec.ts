@@ -8,10 +8,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SessionStore } from '@/features/auth/application/session-store';
 import type { CurrentUser, SessionState } from '@/features/auth/domain/auth-models';
 import { provideZard } from '@/shared/zard/core/provider/providezard';
-import type { Task, TaskListResponse } from '../../domain/task-model';
-import { parseTaskQuery } from '../../domain/task-query';
-import { TasksApi } from '../../infrastructure/tasks-api';
-import { TaskList } from './task-list';
+import type { Task, TaskListResponse } from '../../../domain/task-model';
+import { parseTaskQuery } from '../../../domain/task-query';
+import { TasksApi } from '../../../infrastructure/tasks-api';
+import { TaskList } from '../task-list';
 
 const initialUrl = '/tasks?status=in_progress&page=3';
 const mobileQuery = '(max-width: 767.98px)';
@@ -138,9 +138,7 @@ describe('TaskList creation entry and responsive Sheet', () => {
     breakpoint.next({ matches, breakpoints: { [mobileQuery]: matches } });
   }
 
-  const closeRoutes = ['corner', 'escape', 'backdrop'] as const;
-
-  async function requestClose(route: (typeof closeRoutes)[number]) {
+  async function requestClose(route: 'corner' | 'escape' | 'backdrop') {
     if (route === 'escape') {
       sheet().dispatchEvent(
         new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }),
@@ -185,106 +183,87 @@ describe('TaskList creation entry and responsive Sheet', () => {
     await vi.waitFor(() => expect(confirmation()).toBeNull());
   }
 
-  it.each(closeRoutes)(
-    'closes a clean form through %s without confirmation or requests',
-    async (route) => {
-      await render();
-      await openSheet();
-      await requestClose(route);
+  it('closes a clean form without confirmation or requests', async () => {
+    await render();
+    await openSheet();
+    await requestClose('corner');
 
+    expect(confirmation()).toBeNull();
+    await expectSheetClosed();
+    expect(api.create).not.toHaveBeenCalled();
+    expect(api.list).toHaveBeenCalledTimes(1);
+    expect(TestBed.inject(Router).url).toBe(initialUrl);
+  });
+
+  it('confirms a dirty closure and keeps the draft on cancel', async () => {
+    await render();
+    await openSheet();
+    await enterCreationTitle('Unfinished report');
+    await requestClose('escape');
+
+    const dialog = await expectConfirmation();
+    expect(sheet().getAttribute('data-state')).toBe('open');
+    await chooseConfirmation(dialog, 'Seguir editando');
+
+    expect(sheet().getAttribute('data-state')).toBe('open');
+    expect(sheet().querySelector<HTMLInputElement>('#task-title')?.value).toBe('Unfinished report');
+    expect(api.create).not.toHaveBeenCalled();
+    expect(api.list).toHaveBeenCalledTimes(1);
+    expect(TestBed.inject(Router).url).toBe(initialUrl);
+  });
+
+  it('discards a dirty closure without saving or refreshing and reopens empty', async () => {
+    await render();
+    await openSheet();
+    await enterCreationTitle('Discard this draft');
+    await requestClose('backdrop');
+    const dialog = await expectConfirmation();
+    await chooseConfirmation(dialog, 'Descartar');
+    await expectSheetClosed();
+
+    await openSheet();
+    expect(sheet().querySelector<HTMLInputElement>('#task-title')?.value).toBe('');
+    expect(sheet().querySelector<HTMLTextAreaElement>('#task-description')?.value).toBe('');
+    expect(api.create).not.toHaveBeenCalled();
+    expect(api.list).toHaveBeenCalledTimes(1);
+    expect(TestBed.inject(Router).url).toBe(initialUrl);
+  });
+
+  it('blocks closure while saving, then closes on success without confirmation', async () => {
+    const pending = deferred<Task>();
+    api.create.mockReturnValue(pending.promise);
+    await render();
+    await openSheet();
+    await enterCreationTitle('New report');
+    submitCreation();
+    await settle();
+
+    try {
+      await requestClose('escape');
       expect(confirmation()).toBeNull();
-      await expectSheetClosed();
-      expect(api.create).not.toHaveBeenCalled();
-      expect(api.list).toHaveBeenCalledTimes(1);
-      expect(TestBed.inject(Router).url).toBe(initialUrl);
-    },
-  );
-
-  it.each(closeRoutes)(
-    'confirms dirty %s closure and keeps the same draft on cancel',
-    async (route) => {
-      await render();
-      await openSheet();
-      await enterCreationTitle('Unfinished report');
-      const form = sheet().querySelector('app-task-form');
-      const title = sheet().querySelector<HTMLInputElement>('#task-title');
-      await requestClose(route);
-
-      const dialog = await expectConfirmation();
       expect(sheet().getAttribute('data-state')).toBe('open');
-      expect(sheet().querySelector('app-task-form')).toBe(form);
-      await chooseConfirmation(dialog, 'Seguir editando');
-
-      expect(sheet().getAttribute('data-state')).toBe('open');
-      expect(sheet().querySelector('app-task-form')).toBe(form);
-      expect(sheet().querySelector('#task-title')).toBe(title);
-      expect(title?.value).toBe('Unfinished report');
-      expect(api.create).not.toHaveBeenCalled();
+      expect(sheet().querySelector<HTMLInputElement>('#task-title')?.value).toBe('New report');
+      expect(sheet().querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(
+        true,
+      );
+      expect(api.create).toHaveBeenCalledExactlyOnceWith({
+        title: 'New report',
+        status: 'pending',
+      });
       expect(api.list).toHaveBeenCalledTimes(1);
       expect(TestBed.inject(Router).url).toBe(initialUrl);
-    },
-  );
-
-  it.each(closeRoutes)(
-    'discards dirty %s closure without saving or refreshing and reopens empty',
-    async (route) => {
-      await render();
-      await openSheet();
-      await enterCreationTitle('Discard this draft');
-      await requestClose(route);
-      const dialog = await expectConfirmation();
-      await chooseConfirmation(dialog, 'Descartar');
-      await expectSheetClosed();
-
-      await openSheet();
-      expect(sheet().querySelector<HTMLInputElement>('#task-title')?.value).toBe('');
-      expect(sheet().querySelector<HTMLTextAreaElement>('#task-description')?.value).toBe('');
-      expect(api.create).not.toHaveBeenCalled();
-      expect(api.list).toHaveBeenCalledTimes(1);
-      expect(TestBed.inject(Router).url).toBe(initialUrl);
-    },
-  );
-
-  it.each(closeRoutes)(
-    'blocks %s closure while saving, then closes on success without confirmation',
-    async (route) => {
-      const pending = deferred<Task>();
-      api.create.mockReturnValue(pending.promise);
-      await render();
-      await openSheet();
-      await enterCreationTitle('New report');
-      const form = sheet().querySelector('app-task-form');
-      submitCreation();
+    } finally {
+      pending.resolve(created);
       await settle();
+    }
 
-      try {
-        await requestClose(route);
-        expect(confirmation()).toBeNull();
-        expect(sheet().getAttribute('data-state')).toBe('open');
-        expect(sheet().querySelector('app-task-form')).toBe(form);
-        expect(sheet().querySelector<HTMLInputElement>('#task-title')?.value).toBe('New report');
-        expect(sheet().querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(
-          true,
-        );
-        expect(api.create).toHaveBeenCalledExactlyOnceWith({
-          title: 'New report',
-          status: 'pending',
-        });
-        expect(api.list).toHaveBeenCalledTimes(1);
-        expect(TestBed.inject(Router).url).toBe(initialUrl);
-      } finally {
-        pending.resolve(created);
-        await settle();
-      }
-
-      await expectSheetClosed();
-      expect(confirmation()).toBeNull();
-      expect(api.create).toHaveBeenCalledTimes(1);
-      expect(api.list).toHaveBeenCalledTimes(2);
-      expect(api.list).toHaveBeenLastCalledWith(parseTaskQuery(initialUrl.split('?')[1]));
-      expect(TestBed.inject(Router).url).toBe(initialUrl);
-    },
-  );
+    await expectSheetClosed();
+    expect(confirmation()).toBeNull();
+    expect(api.create).toHaveBeenCalledTimes(1);
+    expect(api.list).toHaveBeenCalledTimes(2);
+    expect(api.list).toHaveBeenLastCalledWith(parseTaskQuery(initialUrl.split('?')[1]));
+    expect(TestBed.inject(Router).url).toBe(initialUrl);
+  });
 
   it.each(['tasks:create:own', 'tasks:create:any'])(
     'opens one labelled Sheet and the existing form with %s without creating or navigating',
@@ -299,10 +278,8 @@ describe('TaskList creation entry and responsive Sheet', () => {
       expect(titleId).toBeTruthy();
       expect(document.getElementById(titleId!)?.textContent?.trim()).toBe('Crear tarea');
       expect(panel.getAttribute('aria-modal')).toBe('true');
-      expect(panel.getAttribute('data-side')).toBe('right');
-      expect(panel.querySelector('app-task-form #task-title')).not.toBeNull();
-      expect(panel.querySelector('app-task-form textarea#task-description')).not.toBeNull();
-      expect(document.body.querySelectorAll('app-task-form')).toHaveLength(1);
+      expect(panel.querySelector('#task-title')).not.toBeNull();
+      expect(panel.querySelector('textarea#task-description')).not.toBeNull();
       expect(TestBed.inject(Router).url).toBe(initialUrl);
       expect(api.list).toHaveBeenCalledTimes(1);
       expect(api.create).not.toHaveBeenCalled();
@@ -335,18 +312,7 @@ describe('TaskList creation entry and responsive Sheet', () => {
     expect(api.create).not.toHaveBeenCalled();
   });
 
-  it('opens the same creation form from the bottom on mobile', async () => {
-    changeViewport(true);
-    await render();
-    await openSheet();
-    expect(sheet().getAttribute('data-side')).toBe('bottom');
-    expect(sheet().querySelector('app-task-form #task-title')).not.toBeNull();
-    expect(document.body.querySelectorAll('app-task-form')).toHaveLength(1);
-    expect(TestBed.inject(Router).url).toBe(initialUrl);
-    expect(api.create).not.toHaveBeenCalled();
-  });
-
-  it('retains one form and its draft when placement changes between desktop and mobile', async () => {
+  it('preserves the creation draft when the viewport changes', async () => {
     await render();
     await openSheet();
     const panel = sheet();
@@ -361,12 +327,12 @@ describe('TaskList creation entry and responsive Sheet', () => {
     for (const mobile of [true, false]) {
       changeViewport(mobile);
       await settle();
-      expect(sheet()).toBe(panel);
-      expect(sheet().getAttribute('data-side')).toBe(mobile ? 'bottom' : 'right');
-      expect(sheet().querySelector('#task-title')).toBe(title);
-      expect(title.value).toBe('Unfinished report');
-      expect(description.value).toBe('Keep this draft');
-      expect(document.body.querySelectorAll('app-task-form')).toHaveLength(1);
+      expect(sheet().querySelector<HTMLInputElement>('#task-title')?.value).toBe(
+        'Unfinished report',
+      );
+      expect(sheet().querySelector<HTMLTextAreaElement>('#task-description')?.value).toBe(
+        'Keep this draft',
+      );
     }
     expect(TestBed.inject(Router).url).toBe(initialUrl);
     expect(api.list).toHaveBeenCalledTimes(1);

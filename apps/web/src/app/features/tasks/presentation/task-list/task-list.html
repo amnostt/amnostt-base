@@ -15,69 +15,13 @@
     }
   </header>
 
-  <section
-    class="grid shrink-0 grid-cols-1 gap-4 @min-[44rem]:grid-cols-[minmax(0,1fr)_11rem_17rem]"
-    aria-label="Filtros de tareas"
-  >
-    <div z-field class="min-w-0 w-full @min-[44rem]:max-w-sm">
-      <label z-field-label for="task-search">Buscar tareas</label>
-      <input
-        z-input
-        id="task-search"
-        type="search"
-        placeholder="Buscar tareas..."
-        [value]="searchText()"
-        (input)="changeSearch($event)"
-      />
-    </div>
-
-    <div z-field class="min-w-0 w-full" aria-labelledby="task-status-label">
-      <label z-field-label id="task-status-label" for="task-status">Estado</label>
-      <z-select
-        id="task-status"
-        [zValue]="query().status || 'all'"
-        (zSelectionChange)="changeStatus($event)"
-      >
-        <z-select-group>
-          <z-select-item zValue="all">Todos los estados</z-select-item>
-          <z-select-item zValue="pending">Pendiente</z-select-item>
-          <z-select-item zValue="in_progress">En progreso</z-select-item>
-          <z-select-item zValue="completed">Completada</z-select-item>
-        </z-select-group>
-      </z-select>
-    </div>
-
-    <div z-field class="min-w-0 w-full">
-      <label z-field-label for="task-due-date">Vencimiento</label>
-
-      <div class="flex min-w-0 items-center gap-2">
-        <z-date-picker
-          class="min-w-0 flex-1"
-          zId="task-due-date"
-          zMode="single"
-          zLocale="es"
-          zFormat="longDate"
-          zIcon="calendar"
-          zPlaceholder="Todas las fechas"
-          [value]="dueDateValue()"
-          (dateChange)="changeDueDate($event)"
-        />
-
-        <button
-          z-button
-          type="button"
-          zType="ghost"
-          zSize="icon-sm"
-          class="shrink-0"
-          aria-label="Limpiar vencimiento"
-          [zDisabled]="!query().dueDate"
-          (click)="changeDueDate(null)"
-        >
-          <ng-icon name="lucideEraser" aria-hidden="true" />
-        </button>
-      </div>
-    </div>
-  </section>
+  <app-task-filters
+    [query]="query()"
+    [searchText]="searchText()"
+    (searchChange)="changeSearch($event)"
+    (statusChange)="changeStatus($event)"
+    (dueDateChange)="changeDueDate($event)"
+  />
 
   @if (deletingTask()) {
     <p role="status" class="text-muted-foreground">Eliminando tarea...</p>
@@ -109,164 +53,32 @@
       @if (vm.response.data.length === 0) {
         <p class="text-muted-foreground min-h-0 flex-1">No hay tareas para mostrar.</p>
       } @else {
-        <div
-          class="min-h-0 min-w-0 flex-1 overflow-auto rounded-md border"
-          role="region"
-          aria-label="Tabla de tareas"
-          tabindex="0"
-        >
-          <table z-table class="min-w-160">
-            <caption z-table-caption class="sr-only">
-              Listado de tareas
-            </caption>
-            <thead z-table-header class="bg-background sticky top-0 z-10">
-              <tr z-table-row>
-                <th z-table-head scope="col" [attr.aria-sort]="columnSort('title')">
-                  <button
-                    z-button
-                    zType="ghost"
-                    zSize="sm"
-                    type="button"
-                    (click)="toggleColumnSort('title')"
-                  >
-                    Título
-                    <ng-icon [name]="columnIcon('title')" aria-hidden="true" />
-                  </button>
-                </th>
-                <th z-table-head scope="col">Descripción</th>
-                <th z-table-head scope="col">Estado</th>
-                <th z-table-head scope="col" [attr.aria-sort]="columnSort('dueDate')">
-                  <button
-                    z-button
-                    zType="ghost"
-                    zSize="sm"
-                    type="button"
-                    (click)="toggleColumnSort('dueDate')"
-                  >
-                    Vencimiento
-                    <ng-icon [name]="columnIcon('dueDate')" aria-hidden="true" />
-                  </button>
-                </th>
-                <th z-table-head scope="col">Acciones</th>
-              </tr>
-            </thead>
-            <tbody z-table-body>
-              @for (task of vm.response.data; track task.id) {
-                <tr
-                  z-table-row
-                  z-context-menu
-                  [zContextMenuTriggerFor]="taskMenu"
-                  [zDisabled]="!canEdit(task) && !canDelete(task)"
-                >
-                  <td z-table-cell class="font-medium">{{ task.title }}</td>
-                  <td z-table-cell>{{ task.description ?? '—' }}</td>
-                  <td z-table-cell>{{ task.status }}</td>
-                  <td z-table-cell class="whitespace-nowrap">
-                    {{ task.dueDate ?? '—' }}
-                  </td>
-                  <td z-table-cell>
-                    @if (canEdit(task) || canDelete(task)) {
-                      <button
-                        z-button
-                        z-dropdown
-                        type="button"
-                        zType="ghost"
-                        zSize="sm"
-                        [attr.aria-label]="'Acciones de ' + task.title"
-                        [zDropdownMenu]="taskMenu"
-                      >
-                        Acciones
-                        <ng-icon name="lucideChevronDown" aria-hidden="true" />
-                      </button>
-                    } @else {
-                      <span class="text-muted-foreground">-</span>
-                    }
-
-                    <z-dropdown-menu-content #taskMenu class="w-40">
-                      @if (canEdit(task)) {
-                        <z-dropdown-menu-item (click)="openEdit(task)">
-                          Editar
-                        </z-dropdown-menu-item>
-                      }
-
-                      @if (canDelete(task)) {
-                        <z-dropdown-menu-item zType="destructive" (click)="requestDelete(task)">
-                          Eliminar
-                        </z-dropdown-menu-item>
-                      }
-                    </z-dropdown-menu-content>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
+        <app-task-table
+          [rows]="tableRows()"
+          [sort]="query().sort"
+          (sortChange)="toggleColumnSort($event)"
+          (edit)="openEdit($event)"
+          (delete)="requestDelete($event)"
+        />
       }
     }
   }
 
-  <div class="flex shrink-0 flex-wrap items-center justify-between gap-4">
-    @if (vm.status === 'ready' && vm.response.data.length > 0) {
-      <p class="text-muted-foreground text-sm">Total: {{ vm.response.meta.totalItems }}</p>
-    }
-
-    <div role="group" aria-label="Tareas por página" class="flex items-center gap-2">
-      <span class="text-sm font-medium">Tareas por página</span>
-
-      <z-select
-        class="w-24"
-        [zValue]="query().limit.toString()"
-        (zSelectionChange)="changeLimit($event)"
-      >
-        <z-select-group>
-          @for (limit of pageSizeOptions; track limit) {
-            <z-select-item [zValue]="limit.toString()">
-              {{ limit }}
-            </z-select-item>
-          }
-        </z-select-group>
-      </z-select>
-    </div>
-
-    @if (paginationMeta(); as meta) {
-      <z-pagination
-        class="mx-0 w-auto"
-        zAriaLabel="Paginación de tareas"
-        zPreviousText="Anterior"
-        zNextText="Siguiente"
-        zSize="icon-sm"
-        [zTotal]="meta.totalPages"
-        [zPageIndex]="query().page"
-        [zDisabled]="vm.status !== 'ready' || meta.totalPages === 0"
-        (zPageIndexChange)="changePage($event)"
-      />
-    }
-  </div>
+  <app-task-pagination
+    [meta]="paginationMeta()"
+    [page]="query().page"
+    [limit]="query().limit"
+    [ready]="vm.status === 'ready'"
+    [showTotal]="vm.status === 'ready' && vm.response.data.length > 0"
+    (limitChange)="changeLimit($event)"
+    (pageChange)="changePage($event)"
+  />
   @if (canUseForm()) {
-    <z-sheet
-      #createSheet="zSheet"
-      [zVisible]="editorOpen()"
-      (zVisibleChange)="onCreateVisibleChange($event, createSheet)"
-      [zSide]="isMobile() ? 'bottom' : 'right'"
-    >
-      <z-sheet-header>
-        <z-sheet-title>
-          {{ selectedTask() ? 'Editar tarea' : 'Crear tarea' }}
-        </z-sheet-title>
-        <z-sheet-description>
-          {{
-            selectedTask()
-              ? 'Actualiza los datos de la tarea.'
-              : 'Completa los datos para crear una tarea'
-          }}
-        </z-sheet-description>
-      </z-sheet-header>
-
-      <div class="px-6 pb-6">
-        @if (editorOpen()) {
-          <app-task-form [task]="selectedTask()" (saved)="onTaskSaved()" />
-        }
-      </div>
-    </z-sheet>
+    <app-task-editor-sheet
+      [task]="selectedTask()"
+      [visible]="editorOpen()"
+      (closed)="editorOpen.set(false)"
+      (saved)="onTaskSaved()"
+    />
   }
 </section>
