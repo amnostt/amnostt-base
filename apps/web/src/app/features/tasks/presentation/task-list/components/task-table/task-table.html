@@ -36,7 +36,7 @@
             <ng-icon [name]="columnIcon('dueDate')" aria-hidden="true" />
           </button>
         </th>
-        <th z-table-head scope="col">Acciones</th>
+        <th z-table-head scope="col"></th>
       </tr>
     </thead>
     <tbody z-table-body>
@@ -53,7 +53,7 @@
           <td z-table-cell class="whitespace-nowrap">
             {{ row.task.dueDate ?? '—' }}
           </td>
-          <td z-table-cell>
+          <td z-table-cell class="text-right">
             @if (row.canEdit || row.canDelete) {
               <button
                 z-button
@@ -64,8 +64,7 @@
                 [attr.aria-label]="'Acciones de ' + row.task.title"
                 [zDropdownMenu]="taskMenu"
               >
-                Acciones
-                <ng-icon name="lucideChevronDown" aria-hidden="true" />
+                <ng-icon name="lucideEllipsisVertical" aria-hidden="true" />
               </button>
             } @else {
               <span class="text-muted-foreground">-</span>

@@ -11,6 +11,7 @@ import {
   lucideArrowUp,
   lucideArrowUpDown,
   lucideChevronDown,
+  lucideEllipsisVertical,
 } from '@ng-icons/lucide';
 import { ZardButtonComponent } from '@/shared/zard/components/button';
 import { ZardContextMenuImports } from '@/shared/zard/components/context-menu';
@@ -35,7 +36,13 @@ export interface TaskTableRow {
     NgIcon,
   ],
   viewProviders: [
-    provideIcons({ lucideArrowDown, lucideArrowUp, lucideArrowUpDown, lucideChevronDown }),
+    provideIcons({
+      lucideArrowDown,
+      lucideArrowUp,
+      lucideArrowUpDown,
+      lucideChevronDown,
+      lucideEllipsisVertical
+    }),
   ],
   host: { class: 'flex min-h-0 min-w-0 flex-1 flex-col' },
   templateUrl: './task-table.html',
