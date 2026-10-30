@@ -120,9 +120,9 @@ export class AppSidebar {
 
   // Team, and project presentation fixtures; logout uses the real session API.
   protected readonly teams = [
-    { name: 'Estudio Norte', logo: 'lucideGalleryVerticalEnd', plan: 'Plan empresarial' },
-    { name: 'Equipo Horizonte', logo: 'lucideAudioWaveform', plan: 'Plan inicial' },
-    { name: 'Laboratorio Sur', logo: 'lucideCommand', plan: 'Plan gratuito' },
+    { name: 'Amnostt Bussines', logo: 'lucideGalleryVerticalEnd', plan: 'Plan empresarial' },
+    { name: 'Amnostt Starter', logo: 'lucideAudioWaveform', plan: 'Plan inicial' },
+    { name: 'Amnostt Free', logo: 'lucideCommand', plan: 'Plan gratuito' },
   ];
   protected readonly selectedTeam = signal(this.teams[0]);
   protected readonly navigation = [
@@ -131,24 +131,6 @@ export class AppSidebar {
       icon: 'lucideSquareTerminal',
       open: true,
       items: ['Historial', 'Favoritos', 'Configuración'],
-    },
-    {
-      title: 'Modelos',
-      icon: 'lucideBot',
-      open: false,
-      items: ['Modelo inicial', 'Explorador', 'Modelo avanzado'],
-    },
-    {
-      title: 'Documentación',
-      icon: 'lucideBookOpen',
-      open: false,
-      items: ['Introducción', 'Primeros pasos', 'Tutoriales', 'Registro de cambios'],
-    },
-    {
-      title: 'Configuración',
-      icon: 'lucideSettings2',
-      open: false,
-      items: ['General', 'Equipo', 'Facturación', 'Límites'],
     },
   ];
   protected readonly projects = [
