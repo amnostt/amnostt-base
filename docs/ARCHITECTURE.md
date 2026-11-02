@@ -87,7 +87,7 @@ Rutas autenticadas: `GET /api/tasks`, `GET /api/tasks/:id`, `POST /api/tasks`, `
 - Para extender un flujo, sigue primero sus límites existentes: Auth separa modelos, `AuthApi`, `SessionStore` y presentación; Tasks separa dominio, `TasksApi` y presentación, con la coordinación de pantalla en `TaskList` y el formulario en `TaskForm`.
 - Las reglas de permisos y propiedad de Tasks son específicas de este recurso. Extraerlas a una abstracción compartida requiere evidencia de otro recurso y una decisión explícita.
 - Reutiliza primitivas visuales existentes y conserva carga, vacío, error, permisos, navegación, formularios y confirmación según sus pruebas. Registra componentes faltantes como brechas, no como capacidades.
-- Administración de usuarios/roles/permisos, Profile, recuperación por correo y paquetes compartidos no están implementados.
+- Administración de usuarios/roles/permisos, Profile y paquetes compartidos no están implementados. La recuperación por correo está implementada en la API; su interfaz web sigue pendiente.
 - No cambies copy visible ni presentes intención de `PRODUCT.md`, dirección `DESIGN.md` o artefactos `.impeccable/` como comportamiento vigente.
 
 Para bootstrap y comandos del workspace consulta [`README.md`](../README.md); para reglas de contribución consulta [`AGENTS.md`](../AGENTS.md).
