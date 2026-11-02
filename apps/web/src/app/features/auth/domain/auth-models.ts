@@ -19,6 +19,11 @@ export interface ForgotPasswordResult {
   message: string;
 }
 
+export interface ResetPasswordInput {
+  token: string;
+  newPassword: string;
+}
+
 export interface Session {
   accessToken: string;
   currentUser: CurrentUser;

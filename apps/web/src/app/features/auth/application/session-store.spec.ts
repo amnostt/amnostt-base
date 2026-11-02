@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import type { CurrentUser, LoginInput } from '../domain/auth-models';
+import type { CurrentUser, LoginInput, ResetPasswordInput } from '../domain/auth-models';
 import { SessionStore } from './session-store';
 
 describe('SessionStore', () => {
@@ -225,6 +225,18 @@ describe('SessionStore', () => {
     expect(service.state()).toEqual({ status: 'unauthenticated' });
   });
 
+  const resetInput: ResetPasswordInput = {
+    token: 'a'.repeat(43),
+    newPassword: 'new-example-password',
+  };
+
+  async function resetSuccessfully() {
+    const reset = service.resetPassword(resetInput);
+    const request = http.expectOne('/api/auth/reset-password');
+    request.flush(null, { status: 204, statusText: 'No Content' });
+    await reset;
+  }
+
   async function authenticate() {
     const login = service.login(loginInput);
     http.expectOne('/api/auth/login').flush({
@@ -232,6 +244,99 @@ describe('SessionStore', () => {
     });
     await login;
   }
+
+  it('clears local authentication after reset without logging in or making a logout request', async () => {
+    await authenticate();
+
+    await resetSuccessfully();
+
+    expect(service.state()).toEqual({ status: 'unauthenticated' });
+    http.expectNone('/api/auth/login');
+    http.expectNone('/api/auth/logout');
+    http.expectNone('/api/auth/refresh');
+  });
+
+  it('preserves the current session when reset fails', async () => {
+    await authenticate();
+
+    const reset = service.resetPassword(resetInput);
+    http
+      .expectOne('/api/auth/reset-password')
+      .flush(
+        { error: { code: 'UNAUTHORIZED', message: 'private reset detail' } },
+        { status: 401, statusText: 'Unauthorized' },
+      );
+
+    await expect(reset).rejects.toMatchObject({ status: 401 });
+    expect(service.state()).toEqual({ status: 'authenticated', user });
+  });
+
+  it('rejects an authenticated operation after a successful reset', async () => {
+    await authenticate();
+    let finishOperation!: (value: string) => void;
+    const operation = service.withAuthenticatedSession(
+      (token) =>
+        new Promise<string>((resolve) => {
+          expect(token).toBe('example-login-token');
+          finishOperation = resolve;
+        }),
+    );
+
+    await resetSuccessfully();
+    finishOperation('late result');
+
+    await expect(operation).rejects.toThrow('Session changed during the request');
+    expect(service.state()).toEqual({ status: 'unauthenticated' });
+  });
+
+  it.each(['success', 'failure'] as const)(
+    'does not let an outstanding bootstrap %s resurrect authentication after reset',
+    async (outcome) => {
+      const restoration = service.bootstrap();
+      const reset = service.resetPassword(resetInput);
+      http.expectOne('/api/auth/reset-password').flush(null, {
+        status: 204,
+        statusText: 'No Content',
+      });
+      await reset;
+
+      if (outcome === 'success') {
+        finishRestore(olderUser, 'older-example-token');
+      } else {
+        http.expectOne('/api/auth/refresh').flush(null, {
+          status: 401,
+          statusText: 'Unauthorized',
+        });
+      }
+      await restoration;
+
+      expect(service.state()).toEqual({ status: 'unauthenticated' });
+    },
+  );
+
+  it.each(['success', 'failure'] as const)(
+    'does not let an outstanding login %s resurrect authentication after reset',
+    async (outcome) => {
+      const login = service.login(loginInput);
+      const loginRequest = http.expectOne('/api/auth/login');
+      const reset = service.resetPassword(resetInput);
+      http.expectOne('/api/auth/reset-password').flush(null, {
+        status: 204,
+        statusText: 'No Content',
+      });
+      await reset;
+
+      if (outcome === 'success') {
+        loginRequest.flush({ data: { accessToken: 'late-login-token', currentUser: olderUser } });
+        await expect(login).resolves.toBeUndefined();
+      } else {
+        loginRequest.flush(null, { status: 401, statusText: 'Unauthorized' });
+        await expect(login).rejects.toMatchObject({ status: 401 });
+      }
+
+      expect(service.state()).toEqual({ status: 'unauthenticated' });
+    },
+  );
 
   it('clears the displayed user during logout and blocks duplicate logout, login and restoration', async () => {
     await authenticate();

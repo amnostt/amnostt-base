@@ -30,6 +30,10 @@ export class Login {
     () => this.sessionStore.state().status === 'login-submitting',
   );
   protected readonly errorMessage = signal<string | null>(null);
+  protected readonly passwordResetNotice =
+    typeof history !== 'undefined' && history.state?.notice === 'password-reset-success'
+      ? 'Tu contraseña se restableció. Inicia sesión con tu nueva contraseña.'
+      : null;
   protected readonly loginForm = new FormGroup({
     email: new FormControl('', {
       nonNullable: true,

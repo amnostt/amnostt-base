@@ -26,9 +26,9 @@ La aplicación Angular vive en `apps/web` y está disponible en `http://localhos
 
 ## Capacidades implementadas
 
-- **API Auth:** registro, inicio de sesión, restauración mediante refresh, cierre de sesión, consulta del usuario actual, cambio de contraseña y recuperación mediante `POST /api/auth/forgot-password` y `POST /api/auth/reset-password`. La web expone actualmente la solicitud de recuperación; el restablecimiento sigue pendiente. El correo se simula en pruebas y no hay prueba con un proveedor real.
+- **API Auth:** registro, inicio de sesión, restauración mediante refresh, cierre de sesión, consulta del usuario actual, cambio de contraseña y recuperación mediante `POST /api/auth/forgot-password` y `POST /api/auth/reset-password`. La web expone la solicitud y el restablecimiento de recuperación; el correo se simula en pruebas y no hay prueba con un proveedor real.
 - **Correo transaccional (API):** `MailModule` exporta `MailService`, que valida `MAIL_FROM` y `RESEND_API_KEY` al enviar y entrega mensajes de texto plano a Resend con timeout de 10 segundos, sin reintentos. La solicitud de recuperación lo utiliza para enviar el enlace configurado; las pruebas simulan el proveedor y no realizan envíos reales.
-- **Web Auth:** login, solicitud de recuperación, restauración de sesión, logout y navegación protegida. Registro, restablecimiento y cambio de contraseña aún no tienen interfaz conectada.
+- **Web Auth:** login, solicitud y restablecimiento de recuperación, restauración de sesión, logout y navegación protegida. Registro y cambio de contraseña aún no tienen interfaz conectada.
 - **Tasks:** API de listado, consulta, creación, actualización y eliminación; la web ofrece listado y formularios de creación/edición, eliminación con confirmación, permisos de propiedad, filtros, ordenamiento y paginación.
 - **Salud:** `GET /api/health` para liveness y `GET /api/health/ready` para readiness de la base de datos.
 

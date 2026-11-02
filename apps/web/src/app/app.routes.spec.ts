@@ -74,6 +74,18 @@ describe('Protected application routes', () => {
     TestBed.inject(HttpTestingController).expectNone(() => true);
   });
 
+  it('keeps reset-password public and outside the protected shell', async () => {
+    const fixture = await render(`/reset-password?token=${'a'.repeat(43)}`);
+    const element = fixture.nativeElement as HTMLElement;
+    expect(TestBed.inject(Router).url).toBe(`/reset-password?token=${'a'.repeat(43)}`);
+    expect(element.querySelector('app-reset-password')).not.toBeNull();
+    expect(element.querySelector('app-app-shell')).toBeNull();
+    expect(element.querySelector('[data-slot="sidebar"]')).toBeNull();
+    expect(TestBed.inject(SessionStore).state().status).toBe('bootstrap-loading');
+    expect(element.textContent).not.toContain('a'.repeat(43));
+    TestBed.inject(HttpTestingController).expectNone(() => true);
+  });
+
   it('keeps forgot-password public and outside the protected shell', async () => {
     const fixture = await render('/forgot-password');
     const element = fixture.nativeElement as HTMLElement;

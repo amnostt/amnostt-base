@@ -6,6 +6,7 @@ import type {
   ForgotPasswordInput,
   ForgotPasswordResult,
   LoginInput,
+  ResetPasswordInput,
   Session,
 } from '../domain/auth-models';
 
@@ -25,6 +26,12 @@ export class AuthApi {
         withCredentials: true,
       })
       .pipe(map((response) => response.data));
+  }
+
+  resetPassword(input: ResetPasswordInput): Observable<void> {
+    return this.http.post<void>('/api/auth/reset-password', input, {
+      withCredentials: true,
+    });
   }
 
   logout(): Observable<void> {

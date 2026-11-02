@@ -86,6 +86,9 @@
                 </p>
               }
             </div>
+            @if (passwordResetNotice) {
+              <p role="status" aria-live="polite" class="text-sm">{{ passwordResetNotice }}</p>
+            }
             @if (errorMessage()) {
               <p role="alert" class="text-destructive text-sm">{{ errorMessage() }}</p>
             }

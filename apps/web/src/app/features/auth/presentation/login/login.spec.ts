@@ -62,6 +62,19 @@ describe('Login presentation', () => {
     await fixture.whenStable();
   }
 
+  it('shows a fixed completion confirmation from password recovery navigation state', async () => {
+    history.replaceState({ notice: 'password-reset-success' }, '', '/login');
+    const noticeFixture = TestBed.createComponent(Login);
+    await noticeFixture.whenStable();
+    noticeFixture.detectChanges();
+
+    expect(noticeFixture.nativeElement.querySelector('[role="status"]')?.textContent?.trim()).toBe(
+      'Tu contraseña se restableció. Inicia sesión con tu nueva contraseña.',
+    );
+    expect(noticeFixture.nativeElement.textContent).not.toContain('password-reset-success');
+    history.replaceState(null, '', '/login');
+  });
+
   it('renders the selected layout with Spanish application copy', () => {
     expect(page.querySelector('h1')?.textContent).toBe('Inicia sesión en tu cuenta');
     expect(page.textContent).toContain('Amnostt Base');

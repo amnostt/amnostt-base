@@ -2,7 +2,12 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
-import type { ForgotPasswordInput, LoginInput, Session } from '../domain/auth-models';
+import type {
+  ForgotPasswordInput,
+  LoginInput,
+  ResetPasswordInput,
+  Session,
+} from '../domain/auth-models';
 import { AuthApi } from './auth-api';
 
 describe('AuthApi', () => {
@@ -79,6 +84,24 @@ describe('AuthApi', () => {
       .flush(failure, { status: 429, statusText: 'Too Many Requests' });
 
     await expect(result).rejects.toMatchObject({ status: 429, error: failure });
+  });
+
+  it('posts reset-password credentials with cookies, no authorization header, and accepts 204', async () => {
+    const input: ResetPasswordInput = {
+      token: 'a'.repeat(43),
+      newPassword: 'new-example-password',
+    };
+    const result = firstValueFrom(service.resetPassword(input));
+    const request = http.expectOne('/api/auth/reset-password');
+
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual(input);
+    expect(request.request.withCredentials).toBe(true);
+    expect(request.request.headers.has('Authorization')).toBe(false);
+
+    request.flush(null, { status: 204, statusText: 'No Content' });
+    await expect(result).resolves.toBeNull();
+    http.expectNone(() => true);
   });
 
   it('propagates rejected credentials without producing a session', async () => {

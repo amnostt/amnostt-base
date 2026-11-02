@@ -1,5 +1,5 @@
 import { inject, Service, signal } from '@angular/core';
-import { LoginInput, SessionState } from '../domain/auth-models';
+import { LoginInput, ResetPasswordInput, SessionState } from '../domain/auth-models';
 import { AuthApi } from '../infrastructure/auth-api';
 import { firstValueFrom } from 'rxjs';
 
@@ -66,6 +66,14 @@ export class SessionStore {
       }
       throw error;
     }
+  }
+
+  async resetPassword(input: ResetPasswordInput): Promise<void> {
+    await firstValueFrom(this.auth.resetPassword(input));
+
+    ++this.sessionRevision;
+    this.accessToken.set(undefined);
+    this.sessionState.set({ status: 'unauthenticated' });
   }
 
   async logout(): Promise<void> {
