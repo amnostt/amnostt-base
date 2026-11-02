@@ -79,10 +79,11 @@ describe('RegistrationThrottleGuard', () => {
     ).rejects.toBeInstanceOf(ThrottlerException);
   });
 
-  it('does not consume login throttler buckets', async () => {
+  it('does not consume login or password-recovery throttler buckets', async () => {
     const guard = new RegistrationThrottleGuard(
       [
         { name: 'login-ip', limit: 1, ttl: 60_000 },
+        { name: 'password-recovery-ip', limit: 1, ttl: 60_000 },
         { name: 'registration-ip', limit: 100, ttl: 60_000 },
       ],
       new MemoryStorage(),

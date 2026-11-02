@@ -22,6 +22,17 @@ function getPositiveInteger(
   return parsedValue;
 }
 
+function getPositiveIntegerOrDefault(
+  configService: ConfigService,
+  name: string,
+  fallback: number,
+): number {
+  const value = configService.get<string>(name);
+  return value === undefined || value.trim() === ''
+    ? fallback
+    : getPositiveInteger(configService, name);
+}
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -67,6 +78,34 @@ function getPositiveInteger(
           ttl:
             getPositiveInteger(configService, 'AUTH_LOGIN_EMAIL_TTL_SECONDS') *
             1000,
+        },
+        {
+          name: 'password-recovery-ip',
+          limit: getPositiveIntegerOrDefault(
+            configService,
+            'AUTH_PASSWORD_RECOVERY_IP_LIMIT',
+            5,
+          ),
+          ttl:
+            getPositiveIntegerOrDefault(
+              configService,
+              'AUTH_PASSWORD_RECOVERY_IP_TTL_SECONDS',
+              900,
+            ) * 1000,
+        },
+        {
+          name: 'password-recovery-email',
+          limit: getPositiveIntegerOrDefault(
+            configService,
+            'AUTH_PASSWORD_RECOVERY_EMAIL_LIMIT',
+            3,
+          ),
+          ttl:
+            getPositiveIntegerOrDefault(
+              configService,
+              'AUTH_PASSWORD_RECOVERY_EMAIL_TTL_SECONDS',
+              900,
+            ) * 1000,
         },
       ],
     }),

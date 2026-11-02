@@ -20,8 +20,11 @@ import type { CurrentUser } from './auth.types';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { RegistrationThrottleGuard } from './registration-throttle.guard';
 import { LoginThrottleGuard } from './login-throttle.guard';
+import { PasswordRecoveryService } from './password-recovery.service';
+import { PasswordRecoveryThrottleGuard } from './password-recovery-throttle.guard';
 
 const REFRESH_COOKIE_NAME = 'refresh_token';
 const REFRESH_COOKIE_PATH = '/api/auth';
@@ -33,6 +36,7 @@ export class AuthController {
 
   constructor(
     private readonly authService: AuthService,
+    private readonly passwordRecoveryService: PasswordRecoveryService,
     configService: ConfigService,
   ) {
     this.cookieSecure = this.getBoolean(configService, 'AUTH_COOKIE_SECURE');
@@ -46,6 +50,17 @@ export class AuthController {
     this.refreshTtlSeconds = this.getPositiveInteger(
       configService,
       'JWT_REFRESH_TTL_SECONDS',
+    );
+  }
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(PasswordRecoveryThrottleGuard)
+  forgotPassword(
+    @Body() forgotPasswordDto: ForgotPasswordDto,
+  ): Promise<{ message: string }> {
+    return this.passwordRecoveryService.requestPasswordRecovery(
+      forgotPasswordDto,
     );
   }
 

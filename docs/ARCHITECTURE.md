@@ -40,6 +40,7 @@ El backend es la autoridad para identidad, estado de cuenta, sesiones, roles y p
 - `POST /api/auth/refresh`: usa exclusivamente la cookie de refresh y devuelve un access token nuevo. `GET /api/auth/me` obtiene el principal actual.
 - `POST /api/auth/logout`: revoca la sesión cuando puede identificarla, elimina la cookie y responde `204`; es idempotente si la cookie falta o no es válida.
 - `POST /api/auth/password`: cambia contraseña usando la contraseña actual; la nueva exige 12–128 caracteres.
+- `POST /api/auth/forgot-password`: solicita un enlace de recuperación con una respuesta genérica para cuentas activas, inactivas o inexistentes. Normaliza el correo, no crea ni reactiva cuentas y aplica límites independientes por IP y correo.
 - La cookie refresh es `HttpOnly`, `SameSite=Strict`, `Secure` según configuración y limitada a `/api/auth`. La base de datos almacena hashes, no refresh tokens en claro.
 - Access y refresh usan secretos distintos de al menos 32 bytes y claims que identifican usuario, sesión y tipo de token. Cada refresh válido rota el token y su hash; reutilizar un token rotado revoca la sesión.
 - Guards y servicios comprueban cuenta activa, sesión vigente/no revocada y permisos actuales. Errores de credenciales, cuenta o token no revelan cuál condición falló.
@@ -48,13 +49,15 @@ El backend es la autoridad para identidad, estado de cuenta, sesiones, roles y p
 
 Los permisos siguen el formato `<recurso>:<acción>:<own|any>`. `any` abarca cualquier propietario; `own` requiere que el `ownerId` corresponda al usuario actual. El backend comprueba el permiso y la propiedad en cada operación protegida.
 
-## Correo transaccional
+## Correo transaccional y solicitud de recuperación
 
-`MailModule` se registra en `AppModule` y exporta el `MailService` para futuros consumidores de la API. `send` lee `MAIL_FROM` y `RESEND_API_KEY` mediante el `ConfigService` existente y valida esa configuración, el destinatario, el asunto y el texto justo antes de enviar; una API sin configuración de correo puede iniciar mientras no se invoque el servicio.
+`MailModule` se registra en `AppModule`, se importa explícitamente en `AuthModule` y exporta `MailService`. `send` lee `MAIL_FROM` y `RESEND_API_KEY` mediante el `ConfigService` existente y valida esa configuración, el destinatario, el asunto y el texto justo antes de enviar; una API sin configuración de correo puede iniciar mientras no se invoque el servicio.
 
-El servicio realiza un único `POST` de texto plano a Resend con `Authorization: Bearer`, `User-Agent` explícito y redirecciones rechazadas. El límite fijo es de 10 segundos incluyendo la respuesta, sin reintentos; los fallos del proveedor, de red, timeout o cuerpo inválido se convierten en un error seguro sin credenciales, destinatarios ni cuerpos. La configuración y los mensajes rechazados no generan petición de red.
+`POST /api/auth/forgot-password` consulta solo cuentas existentes y activas y devuelve siempre el mismo mensaje aprobado. Para una cuenta válida genera un token opaco aleatorio de 32 bytes, conserva únicamente su hash SHA-256 y lo vincula mediante otra huella SHA-256 al `passwordHash` vigente. La fila única por usuario vence en 30 minutos y una nueva solicitud la reemplaza dentro de una transacción serializable con reintentos acotados ante `P2034`. El enlace usa exclusivamente `AUTH_PASSWORD_RESET_URL`, una URL fija HTTP(S) sin credenciales, consulta ni fragmento; HTTP solo se admite para `localhost` en desarrollo. La configuración ausente o inválida falla cerradamente sin crear una fila.
 
-Las pruebas son deterministas y usan `fetch` simulado y la inyección de Nest; no realizan entregas reales ni validan el proveedor externo. El servicio todavía no está conectado a Auth, no existe endpoint público de envío y la recuperación de contraseña aún no está implementada.
+El servicio realiza un único `POST` de texto plano a Resend con `Authorization: Bearer`, `User-Agent` explícito y redirecciones rechazadas. Los fallos de proveedor, red, timeout o cuerpo inválido se convierten en una respuesta genérica; tras un fallo de envío se elimina condicionalmente solo el hash emitido por esa solicitud, sin borrar una fila reemplazante más nueva. Los límites de recuperación tienen namespace propio y valores predeterminados de 5 por IP y 3 por correo cada 15 minutos, sin compartir los filtros de login o registro.
+
+Las pruebas son deterministas y usan la inyección de Nest para bloquear envíos reales. Esta etapa implementa únicamente la solicitud; el endpoint de restablecimiento, consumo de un solo uso, invalidación al cambiar la contraseña y la interfaz web todavía no están implementados.
 
 ## Tasks
 

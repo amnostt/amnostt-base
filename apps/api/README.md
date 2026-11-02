@@ -21,6 +21,18 @@ pnpm --filter @amnostt/api start:prod
 
 Successful health responses use the normal API envelope: `{"data":{"status":"ok"}}`.
 
+## Solicitud de recuperación
+
+`POST /api/auth/forgot-password` recibe un correo y responde siempre con el mensaje genérico envuelto por la API:
+
+`Si existe una cuenta activa con ese correo, recibirás instrucciones para recuperar el acceso.`
+
+Solo las cuentas existentes y activas reciben un enlace. La solicitud normaliza el correo, almacena únicamente el hash SHA-256 de un token aleatorio de 32 bytes y reemplaza el enlace anterior del usuario; cada token expira en 30 minutos. Los fallos de configuración o del proveedor también conservan la respuesta genérica y no dejan un token utilizable tras un envío fallido.
+
+Configura `AUTH_PASSWORD_RESET_URL` con una URL fija de la web. Debe ser HTTP(S), sin credenciales, consulta ni fragmento; HTTPS es obligatorio salvo `http://localhost` para desarrollo local. Si falta o no es segura, la API puede iniciar, pero no emite ni envía enlaces. Los límites independientes predeterminados son 5 solicitudes por IP y 3 por correo cada 15 minutos; pueden ajustarse con `AUTH_PASSWORD_RECOVERY_IP_LIMIT`, `AUTH_PASSWORD_RECOVERY_IP_TTL_SECONDS`, `AUTH_PASSWORD_RECOVERY_EMAIL_LIMIT` y `AUTH_PASSWORD_RECOVERY_EMAIL_TTL_SECONDS`.
+
+Esta etapa implementa únicamente la solicitud. La ruta de restablecimiento, consumo de un solo uso, invalidación al cambiar la contraseña y la interfaz web quedan para la siguiente etapa.
+
 ## Tests
 
 ```bash

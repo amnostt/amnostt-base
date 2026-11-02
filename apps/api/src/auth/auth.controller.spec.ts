@@ -2,10 +2,12 @@ import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { PasswordRecoveryService } from './password-recovery.service';
 
 describe('AuthController', () => {
   const login = jest.fn();
   const register = jest.fn();
+  const requestPasswordRecovery = jest.fn();
   const changePassword = jest.fn();
   const refresh = jest.fn();
   const logout = jest.fn();
@@ -19,6 +21,9 @@ describe('AuthController', () => {
     refresh,
     logout,
   } as unknown as AuthService;
+  const passwordRecoveryService = {
+    requestPasswordRecovery,
+  } as unknown as PasswordRecoveryService;
 
   const configService = {
     get: jest.fn((key: string) => {
@@ -43,10 +48,32 @@ describe('AuthController', () => {
     clearCookie,
   } as unknown as Response;
 
-  const controller = new AuthController(authService, configService);
+  const controller = new AuthController(
+    authService,
+    passwordRecoveryService,
+    configService,
+  );
 
   beforeEach(() => {
     jest.clearAllMocks();
+  });
+
+  it('should return the generic password recovery response', async () => {
+    requestPasswordRecovery.mockResolvedValue({
+      message:
+        'Si existe una cuenta activa con ese correo, recibirás instrucciones para recuperar el acceso.',
+    });
+
+    await expect(
+      controller.forgotPassword({ email: 'member@example.com' }),
+    ).resolves.toEqual({
+      message:
+        'Si existe una cuenta activa con ese correo, recibirás instrucciones para recuperar el acceso.',
+    });
+
+    expect(requestPasswordRecovery).toHaveBeenCalledWith({
+      email: 'member@example.com',
+    });
   });
 
   it('should set the refresh cookie and return accessToken with currentUser', async () => {
@@ -150,7 +177,12 @@ describe('AuthController', () => {
     } as unknown as ConfigService;
 
     expect(
-      () => new AuthController(authService, productionConfigService),
+      () =>
+        new AuthController(
+          authService,
+          passwordRecoveryService,
+          productionConfigService,
+        ),
     ).toThrow('AUTH_COOKIE_SECURE must be true in production');
   });
 
@@ -168,6 +200,7 @@ describe('AuthController', () => {
     } as unknown as ConfigService;
     const productionController = new AuthController(
       authService,
+      passwordRecoveryService,
       productionConfigService,
     );
 
