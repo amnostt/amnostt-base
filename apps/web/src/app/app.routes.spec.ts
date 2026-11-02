@@ -86,6 +86,39 @@ describe('Protected application routes', () => {
     TestBed.inject(HttpTestingController).expectNone(() => true);
   });
 
+  it('shows the reset completion notice after an actual reset navigation', async () => {
+    const token = 'a'.repeat(43);
+    const fixture = await render(`/reset-password?token=${token}`);
+    const element = fixture.nativeElement as HTMLElement;
+    const http = TestBed.inject(HttpTestingController);
+    const router = TestBed.inject(Router);
+    const password = element.querySelector<HTMLInputElement>('#new-password')!;
+    password.value = 'new-example-password';
+    password.dispatchEvent(new Event('input', { bubbles: true }));
+    element
+      .querySelector('form')!
+      .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+
+    const reset = http.expectOne('/api/auth/reset-password');
+    expect(reset.request.body).toEqual({ token, newPassword: 'new-example-password' });
+    reset.flush(null, { status: 204, statusText: 'No Content' });
+
+    await vi.waitFor(() => expect(router.url).toBe('/login'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(router.url).toBe('/login');
+    expect(router.url).not.toContain('token=');
+    expect(element.querySelector('app-login')).not.toBeNull();
+    expect(element.textContent).toContain(
+      'Tu contraseña se restableció. Inicia sesión con tu nueva contraseña.',
+    );
+    expect(TestBed.inject(SessionStore).state()).toEqual({ status: 'unauthenticated' });
+    http.expectNone('/api/auth/login');
+    http.expectNone('/api/auth/logout');
+  });
+
   it('keeps forgot-password public and outside the protected shell', async () => {
     const fixture = await render('/forgot-password');
     const element = fixture.nativeElement as HTMLElement;

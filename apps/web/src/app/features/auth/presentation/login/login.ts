@@ -1,3 +1,4 @@
+import { Location } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -25,15 +26,13 @@ import { SessionStore } from '../../application/session-store';
 export class Login {
   private readonly sessionStore = inject(SessionStore);
   private readonly router = inject(Router);
+  private readonly location = inject(Location);
 
   protected readonly isLoading = computed(
     () => this.sessionStore.state().status === 'login-submitting',
   );
   protected readonly errorMessage = signal<string | null>(null);
-  protected readonly passwordResetNotice =
-    typeof history !== 'undefined' && history.state?.notice === 'password-reset-success'
-      ? 'Tu contraseña se restableció. Inicia sesión con tu nueva contraseña.'
-      : null;
+  protected readonly passwordResetNotice = this.readPasswordResetNotice();
   protected readonly loginForm = new FormGroup({
     email: new FormControl('', {
       nonNullable: true,
@@ -62,5 +61,24 @@ export class Login {
     } catch {
       this.errorMessage.set('No pudimos iniciar sesión. Revisa tus datos e inténtalo de nuevo.');
     }
+  }
+
+  private readPasswordResetNotice(): string | null {
+    const navigationState = this.router.currentNavigation()?.extras.state;
+    if (navigationState?.['notice'] === 'password-reset-success') {
+      return 'Tu contraseña se restableció. Inicia sesión con tu nueva contraseña.';
+    }
+
+    const locationState = this.location.getState();
+    if (
+      typeof locationState === 'object' &&
+      locationState !== null &&
+      'notice' in locationState &&
+      locationState.notice === 'password-reset-success'
+    ) {
+      return 'Tu contraseña se restableció. Inicia sesión con tu nueva contraseña.';
+    }
+
+    return null;
   }
 }

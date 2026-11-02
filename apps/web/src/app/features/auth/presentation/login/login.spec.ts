@@ -62,17 +62,9 @@ describe('Login presentation', () => {
     await fixture.whenStable();
   }
 
-  it('shows a fixed completion confirmation from password recovery navigation state', async () => {
-    history.replaceState({ notice: 'password-reset-success' }, '', '/login');
-    const noticeFixture = TestBed.createComponent(Login);
-    await noticeFixture.whenStable();
-    noticeFixture.detectChanges();
-
-    expect(noticeFixture.nativeElement.querySelector('[role="status"]')?.textContent?.trim()).toBe(
-      'Tu contraseña se restableció. Inicia sesión con tu nueva contraseña.',
-    );
-    expect(noticeFixture.nativeElement.textContent).not.toContain('password-reset-success');
-    history.replaceState(null, '', '/login');
+  it('preserves regular login without a password-reset completion marker', () => {
+    expect(page.querySelector('[role="status"]')).toBeNull();
+    expect(page.textContent).not.toContain('Tu contraseña se restableció.');
   });
 
   it('renders the selected layout with Spanish application copy', () => {
