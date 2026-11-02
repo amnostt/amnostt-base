@@ -6,6 +6,7 @@ import { HealthController } from './health.controller';
 import { PrismaModule } from './prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { TasksModule } from './tasks/tasks.module';
+import { MailModule } from './mail/mail.module';
 
 function getPositiveInteger(
   configService: ConfigService,
@@ -72,6 +73,7 @@ function getPositiveInteger(
     PrismaModule,
     AuthModule,
     TasksModule,
+    MailModule,
   ],
   controllers: [HealthController],
 })

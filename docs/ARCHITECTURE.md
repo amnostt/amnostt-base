@@ -6,7 +6,7 @@ Este documento describe el workspace y el comportamiento respaldado por código 
 
 | Área                        | Responsabilidad                                                                                           |
 | --------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `apps/api` (`@amnostt/api`) | API NestJS, autenticación, autorización, Tasks, health checks y acceso a PostgreSQL mediante Prisma.      |
+| `apps/api` (`@amnostt/api`) | API NestJS, autenticación, autorización, Tasks, health checks, correo y acceso a PostgreSQL mediante Prisma. |
 | `apps/web` (`@amnostt/web`) | SPA Angular con Zard UI; sesión, navegación protegida, listado, creación, edición y eliminación de Tasks. |
 | `packages/*`                | Reservado; actualmente vacío.                                                                             |
 
@@ -47,6 +47,14 @@ El backend es la autoridad para identidad, estado de cuenta, sesiones, roles y p
 ### Autorización
 
 Los permisos siguen el formato `<recurso>:<acción>:<own|any>`. `any` abarca cualquier propietario; `own` requiere que el `ownerId` corresponda al usuario actual. El backend comprueba el permiso y la propiedad en cada operación protegida.
+
+## Correo transaccional
+
+`MailModule` se registra en `AppModule` y exporta el `MailService` para futuros consumidores de la API. `send` lee `MAIL_FROM` y `RESEND_API_KEY` mediante el `ConfigService` existente y valida esa configuración, el destinatario, el asunto y el texto justo antes de enviar; una API sin configuración de correo puede iniciar mientras no se invoque el servicio.
+
+El servicio realiza un único `POST` de texto plano a Resend con `Authorization: Bearer`, `User-Agent` explícito y redirecciones rechazadas. El límite fijo es de 10 segundos incluyendo la respuesta, sin reintentos; los fallos del proveedor, de red, timeout o cuerpo inválido se convierten en un error seguro sin credenciales, destinatarios ni cuerpos. La configuración y los mensajes rechazados no generan petición de red.
+
+Las pruebas son deterministas y usan `fetch` simulado y la inyección de Nest; no realizan entregas reales ni validan el proveedor externo. El servicio todavía no está conectado a Auth, no existe endpoint público de envío y la recuperación de contraseña aún no está implementada.
 
 ## Tasks
 
