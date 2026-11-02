@@ -27,10 +27,12 @@ const MAX_REGISTRATION_TRANSACTION_RETRIES = 3;
 const MAX_PASSWORD_TRANSACTION_RETRIES = 3;
 
 type RoleReader = Pick<PrismaService, 'role'>;
+type SessionClient = Pick<PrismaService, 'user' | 'session'>;
 type UserWithPermissions = {
   id: string;
   email: string;
   name: string;
+  isActive: boolean;
   role: {
     name: string;
     rolePermissions: Array<{ permission: { code: string } }>;
@@ -250,6 +252,47 @@ export class AuthService {
     throw new InternalServerErrorException(
       'Registration could not be completed',
     );
+  }
+
+  async createSessionForUser(
+    userId: string,
+    client: SessionClient = this.prisma,
+  ): Promise<LoginResult> {
+    const user = await client.user.findUnique({
+      where: { id: userId },
+      include: {
+        role: {
+          include: {
+            rolePermissions: {
+              include: { permission: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!user?.isActive) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const sessionId = randomUUID();
+    const { accessToken, refreshToken } =
+      await this.authTokenService.signTokenPair(user.id, sessionId);
+
+    await client.session.create({
+      data: {
+        id: sessionId,
+        userId: user.id,
+        refreshTokenHash: this.authTokenService.hashRefreshToken(refreshToken),
+        expiresAt: this.authTokenService.getRefreshTokenExpiresAt(),
+      },
+    });
+
+    return {
+      accessToken,
+      refreshToken,
+      currentUser: this.toCurrentUser(user),
+    };
   }
 
   async getCurrentUser(

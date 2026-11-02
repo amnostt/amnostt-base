@@ -37,7 +37,7 @@ Los restablecimientos tienen un límite independiente por IP de 10 intentos cada
 
 ## Vinculación de identidad Google
 
-La API solo habilita Google cuando `GOOGLE_CLIENT_ID` contiene el client ID público de una aplicación web. No requiere un secreto de cliente para el flujo GIS popup; si falta la configuración, la API puede iniciar, `GET /api/auth/google/status` devuelve `enabled: false` y los endpoints de vinculación fallan cerradamente con `503`.
+La API solo habilita Google cuando `GOOGLE_CLIENT_ID` contiene el client ID público de una aplicación web. No requiere un secreto de cliente para el flujo GIS popup; si falta la configuración, la API puede iniciar, `GET /api/auth/google/config` devuelve `enabled: false` y los endpoints Google fallan cerradamente con `503`, sin afectar la autenticación local.
 
 La pantalla autenticada usa este contrato:
 
@@ -45,7 +45,15 @@ La pantalla autenticada usa este contrato:
 2. `POST /api/auth/google/link/challenge` no recibe cuerpo y devuelve `201` con `{ challengeId, nonce, expiresAt }`. El challenge queda ligado al usuario y a la sesión local vigente durante diez minutos.
 3. `POST /api/auth/google/link` recibe `{ challengeId, credential }`, donde `credential` es el ID token entregado por GIS. El servidor valida firma, audiencia, issuer y expiración mediante `google-auth-library`, además de `sub`, `email_verified`, nonce y coincidencia de correo normalizado. Responde `{ provider: "google", linked: true }`.
 
-El challenge se consume una sola vez dentro de una transacción serializable. Una identidad Google solo puede pertenecer a un usuario y un usuario solo puede tener una identidad; un conflicto no cambia la propiedad existente ni la contraseña, correo, rol o sesiones locales. Esta etapa no implementa el login Google ni la interfaz web.
+El challenge se consume una sola vez dentro de una transacción serializable. Una identidad Google solo puede pertenecer a un usuario y un usuario solo puede tener una identidad; un conflicto no cambia la propiedad existente ni la contraseña, correo, rol o sesiones locales.
+
+El inicio de sesión público usa este contrato adicional:
+
+1. `GET /api/auth/google/config` no requiere autenticación y devuelve solo `{ provider: "google", enabled, clientId }`.
+2. `POST /api/auth/google/login/challenge` no recibe cuerpo y devuelve `201` con `{ challengeId, nonce, expiresAt }`. También emite una cookie HttpOnly `SameSite=Strict` con `Secure` según configuración y `Path=/api/auth/google`; el valor no se devuelve a JavaScript.
+3. `POST /api/auth/google/login` recibe `{ challengeId, credential }`. El servidor exige la cookie de prueba del navegador, valida nonce, `sub`, `email_verified`, audiencia, firma, issuer y expiración, y busca exclusivamente el `sub` ya vinculado a una cuenta local activa. No registra, reactiva ni busca por correo. Una finalización válida devuelve el mismo `{ accessToken, currentUser }` que el login local y establece la cookie refresh existente; los errores usan `401 Invalid Google credentials` sin limpiar ni reemplazar la cookie refresh.
+
+Los hashes del challenge y de la prueba del navegador son los únicos valores persistidos. Su consumo y la creación de la sesión ocurren juntos en una transacción serializable. Las rutas públicas de login usan un límite IP propio y no consumen los buckets de login local, registro o recuperación.
 
 ## Tests
 

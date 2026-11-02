@@ -28,10 +28,17 @@ import { PasswordRecoveryService } from './password-recovery.service';
 import { PasswordRecoveryThrottleGuard } from './password-recovery-throttle.guard';
 import { PasswordResetThrottleGuard } from './password-reset-throttle.guard';
 import { GoogleIdentityService } from './google-identity.service';
+import {
+  GOOGLE_LOGIN_CHALLENGE_TTL_MS,
+  GoogleLoginService,
+} from './google-login.service';
+import { GoogleLoginThrottleGuard } from './google-login-throttle.guard';
 import { GoogleLinkDto } from './dto/google-link.dto';
 
 const REFRESH_COOKIE_NAME = 'refresh_token';
 const REFRESH_COOKIE_PATH = '/api/auth';
+const GOOGLE_LOGIN_PROOF_COOKIE_NAME = 'google_login_proof';
+const GOOGLE_LOGIN_PROOF_COOKIE_PATH = '/api/auth/google';
 
 @Controller('auth')
 export class AuthController {
@@ -42,6 +49,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly passwordRecoveryService: PasswordRecoveryService,
     private readonly googleIdentityService: GoogleIdentityService,
+    private readonly googleLoginService: GoogleLoginService,
     configService: ConfigService,
   ) {
     this.cookieSecure = this.getBoolean(configService, 'AUTH_COOKIE_SECURE');
@@ -56,6 +64,47 @@ export class AuthController {
       configService,
       'JWT_REFRESH_TTL_SECONDS',
     );
+  }
+
+  @Get('google/config')
+  googleConfig() {
+    return this.googleLoginService.getConfig();
+  }
+
+  @Post('google/login/challenge')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(GoogleLoginThrottleGuard)
+  async googleLoginChallenge(@Res({ passthrough: true }) response: Response) {
+    const challenge = await this.googleLoginService.createChallenge();
+    this.setGoogleLoginProofCookie(response, challenge.browserProof);
+    return {
+      challengeId: challenge.challengeId,
+      nonce: challenge.nonce,
+      expiresAt: challenge.expiresAt,
+    };
+  }
+
+  @Post('google/login')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(GoogleLoginThrottleGuard)
+  async googleLogin(
+    @Req() request: Request,
+    @Body() loginDto: GoogleLinkDto,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<{ accessToken: string; currentUser: CurrentUser }> {
+    try {
+      const { accessToken, refreshToken, currentUser } =
+        await this.googleLoginService.login(
+          loginDto,
+          this.getCookie(request, GOOGLE_LOGIN_PROOF_COOKIE_NAME),
+        );
+      this.setRefreshCookie(response, refreshToken);
+      this.clearGoogleLoginProofCookie(response);
+      return { accessToken, currentUser };
+    } catch (error) {
+      this.clearGoogleLoginProofCookie(response);
+      throw error;
+    }
   }
 
   @Get('google/status')
@@ -213,6 +262,28 @@ export class AuthController {
     this.clearRefreshCookie(response);
   }
 
+  private setGoogleLoginProofCookie(
+    response: Response,
+    browserProof: string,
+  ): void {
+    response.cookie(GOOGLE_LOGIN_PROOF_COOKIE_NAME, browserProof, {
+      httpOnly: true,
+      secure: this.cookieSecure,
+      sameSite: 'strict',
+      path: GOOGLE_LOGIN_PROOF_COOKIE_PATH,
+      maxAge: GOOGLE_LOGIN_CHALLENGE_TTL_MS,
+    });
+  }
+
+  private clearGoogleLoginProofCookie(response: Response): void {
+    response.clearCookie(GOOGLE_LOGIN_PROOF_COOKIE_NAME, {
+      httpOnly: true,
+      secure: this.cookieSecure,
+      sameSite: 'strict',
+      path: GOOGLE_LOGIN_PROOF_COOKIE_PATH,
+    });
+  }
+
   private setRefreshCookie(response: Response, refreshToken: string): void {
     response.cookie(REFRESH_COOKIE_NAME, refreshToken, {
       httpOnly: true,
@@ -246,6 +317,38 @@ export class AuthController {
 
       const name = cookie.slice(0, separatorIndex).trim();
       if (name !== REFRESH_COOKIE_NAME) {
+        continue;
+      }
+
+      const value = cookie.slice(separatorIndex + 1).trim();
+      if (!value) {
+        return undefined;
+      }
+
+      try {
+        return decodeURIComponent(value);
+      } catch {
+        return undefined;
+      }
+    }
+
+    return undefined;
+  }
+
+  private getCookie(request: Request, cookieName: string): string | undefined {
+    const cookieHeader = request.headers.cookie;
+    if (typeof cookieHeader !== 'string') {
+      return undefined;
+    }
+
+    for (const cookie of cookieHeader.split(';')) {
+      const separatorIndex = cookie.indexOf('=');
+      if (separatorIndex < 0) {
+        continue;
+      }
+
+      const name = cookie.slice(0, separatorIndex).trim();
+      if (name !== cookieName) {
         continue;
       }
 

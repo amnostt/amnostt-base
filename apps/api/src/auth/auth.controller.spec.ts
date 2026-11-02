@@ -14,6 +14,9 @@ describe('AuthController', () => {
   const getStatus = jest.fn();
   const createChallenge = jest.fn();
   const completeLink = jest.fn();
+  const getGoogleConfig = jest.fn();
+  const createGoogleLoginChallenge = jest.fn();
+  const googleLogin = jest.fn();
   const refresh = jest.fn();
   const logout = jest.fn();
   const cookie = jest.fn();
@@ -35,6 +38,11 @@ describe('AuthController', () => {
     createChallenge,
     completeLink,
   } as unknown as GoogleIdentityService;
+  const googleLoginService = {
+    getConfig: getGoogleConfig,
+    createChallenge: createGoogleLoginChallenge,
+    login: googleLogin,
+  } as never;
 
   const configService = {
     get: jest.fn((key: string) => {
@@ -63,6 +71,7 @@ describe('AuthController', () => {
     authService,
     passwordRecoveryService,
     googleIdentityService,
+    googleLoginService,
     configService,
   );
 
@@ -216,6 +225,7 @@ describe('AuthController', () => {
           authService,
           passwordRecoveryService,
           googleIdentityService,
+          googleLoginService,
           productionConfigService,
         ),
     ).toThrow('AUTH_COOKIE_SECURE must be true in production');
@@ -237,6 +247,7 @@ describe('AuthController', () => {
       authService,
       passwordRecoveryService,
       googleIdentityService,
+      googleLoginService,
       productionConfigService,
     );
 
