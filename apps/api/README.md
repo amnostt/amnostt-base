@@ -31,7 +31,9 @@ Solo las cuentas existentes y activas reciben un enlace. La solicitud normaliza 
 
 Configura `AUTH_PASSWORD_RESET_URL` con una URL fija de la web. Debe ser HTTP(S), sin credenciales, consulta ni fragmento; HTTPS es obligatorio salvo `http://localhost` para desarrollo local. Si falta o no es segura, la API puede iniciar, pero no emite ni envía enlaces. Los límites independientes predeterminados son 5 solicitudes por IP y 3 por correo cada 15 minutos; pueden ajustarse con `AUTH_PASSWORD_RECOVERY_IP_LIMIT`, `AUTH_PASSWORD_RECOVERY_IP_TTL_SECONDS`, `AUTH_PASSWORD_RECOVERY_EMAIL_LIMIT` y `AUTH_PASSWORD_RECOVERY_EMAIL_TTL_SECONDS`.
 
-Esta etapa implementa únicamente la solicitud. La ruta de restablecimiento, consumo de un solo uso, invalidación al cambiar la contraseña y la interfaz web quedan para la siguiente etapa.
+`POST /api/auth/reset-password` recibe `{ token, newPassword }` y responde `204` sin cuerpo. El token debe tener 43 caracteres base64url; los enlaces desconocidos, vencidos, reemplazados, consumidos, ligados a una contraseña antigua o a una cuenta inactiva responden con el mismo error genérico: `El enlace de recuperación no es válido o ha expirado.` El consumo, el cambio Argon2id y la revocación de todas las sesiones ocurren en una transacción serializable; no se emiten tokens ni se inicia sesión automáticamente y se limpia la cookie refresh existente. Un cambio autenticado de contraseña también invalida recuperaciones pendientes, pero conserva la sesión que lo solicita.
+
+Los restablecimientos tienen un límite independiente por IP de 10 intentos cada 15 minutos, configurable mediante `AUTH_PASSWORD_RESET_IP_LIMIT` y `AUTH_PASSWORD_RESET_IP_TTL_SECONDS`. Esta etapa implementa ambos endpoints de API. La interfaz web todavía no está disponible y las pruebas simulan el proveedor de correo; no existe prueba de envío con un proveedor real.
 
 ## Tests
 

@@ -21,10 +21,12 @@ import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RegistrationThrottleGuard } from './registration-throttle.guard';
 import { LoginThrottleGuard } from './login-throttle.guard';
 import { PasswordRecoveryService } from './password-recovery.service';
 import { PasswordRecoveryThrottleGuard } from './password-recovery-throttle.guard';
+import { PasswordResetThrottleGuard } from './password-reset-throttle.guard';
 
 const REFRESH_COOKIE_NAME = 'refresh_token';
 const REFRESH_COOKIE_PATH = '/api/auth';
@@ -62,6 +64,17 @@ export class AuthController {
     return this.passwordRecoveryService.requestPasswordRecovery(
       forgotPasswordDto,
     );
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(PasswordResetThrottleGuard)
+  async resetPassword(
+    @Body() resetPasswordDto: ResetPasswordDto,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    await this.passwordRecoveryService.resetPassword(resetPasswordDto);
+    this.clearRefreshCookie(response);
   }
 
   @Post('login')

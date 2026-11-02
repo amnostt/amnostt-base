@@ -107,6 +107,20 @@ function getPositiveIntegerOrDefault(
               900,
             ) * 1000,
         },
+        {
+          name: 'password-reset-ip',
+          limit: getPositiveIntegerOrDefault(
+            configService,
+            'AUTH_PASSWORD_RESET_IP_LIMIT',
+            10,
+          ),
+          ttl:
+            getPositiveIntegerOrDefault(
+              configService,
+              'AUTH_PASSWORD_RESET_IP_TTL_SECONDS',
+              900,
+            ) * 1000,
+        },
       ],
     }),
     PrismaModule,

@@ -105,27 +105,67 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const sessionId = randomUUID();
-    const { accessToken, refreshToken } =
-      await this.authTokenService.signTokenPair(user.id, sessionId);
-    const refreshTokenHash =
-      this.authTokenService.hashRefreshToken(refreshToken);
-    const expiresAt = this.authTokenService.getRefreshTokenExpiresAt();
+    for (
+      let attempt = 0;
+      attempt < MAX_PASSWORD_TRANSACTION_RETRIES;
+      attempt += 1
+    ) {
+      try {
+        return await this.prisma.$transaction(
+          async (transaction) => {
+            const currentUser = await transaction.user.findUnique({
+              where: { id: user.id },
+              select: { passwordHash: true, isActive: true },
+            });
 
-    await this.prisma.session.create({
-      data: {
-        id: sessionId,
-        userId: user.id,
-        refreshTokenHash,
-        expiresAt,
-      },
-    });
+            if (
+              !currentUser?.isActive ||
+              currentUser.passwordHash !== passwordHash
+            ) {
+              throw new UnauthorizedException('Invalid credentials');
+            }
 
-    return {
-      accessToken,
-      refreshToken,
-      currentUser: this.toCurrentUser(user),
-    };
+            const sessionId = randomUUID();
+            const { accessToken, refreshToken } =
+              await this.authTokenService.signTokenPair(user.id, sessionId);
+            const refreshTokenHash =
+              this.authTokenService.hashRefreshToken(refreshToken);
+            const expiresAt = this.authTokenService.getRefreshTokenExpiresAt();
+
+            await transaction.session.create({
+              data: {
+                id: sessionId,
+                userId: user.id,
+                refreshTokenHash,
+                expiresAt,
+              },
+            });
+
+            return {
+              accessToken,
+              refreshToken,
+              currentUser: this.toCurrentUser(user),
+            };
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+      } catch (error) {
+        if (error instanceof UnauthorizedException) {
+          throw error;
+        }
+
+        if (this.isTransactionConflict(error)) {
+          if (attempt + 1 < MAX_PASSWORD_TRANSACTION_RETRIES) continue;
+          throw new InternalServerErrorException(
+            'Login could not be completed',
+          );
+        }
+
+        throw error;
+      }
+    }
+
+    throw new InternalServerErrorException('Login could not be completed');
   }
 
   async register(registerDto: RegisterDto): Promise<LoginResult> {
@@ -319,6 +359,13 @@ export class AuthService {
               where: { id: userId },
               data: { passwordHash },
             });
+            await transaction.passwordRecoveryToken.updateMany({
+              where: {
+                userId,
+                consumedAt: null,
+              },
+              data: { consumedAt: new Date() },
+            });
             await transaction.session.updateMany({
               where: {
                 userId,
@@ -336,7 +383,7 @@ export class AuthService {
           throw error;
         }
 
-        if (this.hasPrismaCode(error, 'P2034')) {
+        if (this.isTransactionConflict(error)) {
           if (attempt + 1 < MAX_PASSWORD_TRANSACTION_RETRIES) continue;
           throw new InternalServerErrorException(
             'Password change could not be completed',
@@ -483,6 +530,22 @@ export class AuthService {
       error !== null &&
       'code' in error &&
       (error as { code?: unknown }).code === code
+    );
+  }
+
+  private isTransactionConflict(error: unknown): boolean {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      return error.code === 'P2034';
+    }
+
+    if (typeof error !== 'object' || error === null) {
+      return false;
+    }
+
+    return (
+      error.constructor?.name === 'DriverAdapterError' &&
+      'message' in error &&
+      (error as { message?: unknown }).message === 'TransactionWriteConflict'
     );
   }
 

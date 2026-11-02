@@ -20,6 +20,7 @@ describe('AuthService', () => {
   const createUser = jest.fn();
   const createSession = jest.fn();
   const updatePasswordUser = jest.fn();
+  const updateRecovery = jest.fn();
   const updateManySession = jest.fn();
   const runTransaction = jest.fn();
   const signTokenPair = jest.fn();
@@ -74,10 +75,14 @@ describe('AuthService', () => {
     runTransaction.mockImplementation(
       async (
         callback: (transaction: {
-          session: { updateMany: jest.Mock };
+          user: { findUnique: jest.Mock };
+          session: { create: jest.Mock; updateMany: jest.Mock };
         }) => Promise<unknown>,
       ): Promise<unknown> =>
-        callback({ session: { updateMany: updateManySession } }),
+        callback({
+          user: { findUnique: findUniqueUser },
+          session: { create: createSession, updateMany: updateManySession },
+        }),
     );
   });
 
@@ -246,6 +251,35 @@ describe('AuthService', () => {
         expiresAt,
       },
     });
+  });
+
+  it('rechecks the verified password before creating a session', async () => {
+    const oldPasswordHash = await argon2.hash('correct-password', {
+      type: argon2.argon2id,
+    });
+    findUniqueUser
+      .mockResolvedValueOnce({
+        id: 'user-id',
+        email: 'member@example.com',
+        name: 'Member User',
+        passwordHash: oldPasswordHash,
+        isActive: true,
+        role: { name: 'Member', rolePermissions: [] },
+      })
+      .mockResolvedValueOnce({
+        passwordHash: 'new-password-hash',
+        isActive: true,
+      });
+
+    await expect(
+      service.login({
+        email: 'member@example.com',
+        password: 'correct-password',
+      }),
+    ).rejects.toEqual(new UnauthorizedException('Invalid credentials'));
+
+    expect(signTokenPair).not.toHaveBeenCalled();
+    expect(createSession).not.toHaveBeenCalled();
   });
 
   describe('registration', () => {
@@ -538,6 +572,7 @@ describe('AuthService', () => {
         async (
           callback: (transaction: {
             user: { findUnique: jest.Mock; update: jest.Mock };
+            passwordRecoveryToken: { updateMany: jest.Mock };
             session: { findFirst: jest.Mock; updateMany: jest.Mock };
           }) => Promise<unknown>,
         ) =>
@@ -546,6 +581,7 @@ describe('AuthService', () => {
               findUnique: findPasswordUser,
               update: updatePasswordUser,
             },
+            passwordRecoveryToken: { updateMany: updateRecovery },
             session: {
               findFirst: findPasswordSession,
               updateMany: updateManySession,
@@ -615,6 +651,10 @@ describe('AuthService', () => {
         where: { id: 'user-id' },
         data: { passwordHash: expect.any(String) as string },
       });
+      expect(updateRecovery).toHaveBeenCalledWith({
+        where: { userId: 'user-id', consumedAt: null },
+        data: { consumedAt: expect.any(Date) as Date },
+      });
       expect(updateManySession).toHaveBeenCalledWith({
         where: {
           userId: 'user-id',
@@ -632,11 +672,15 @@ describe('AuthService', () => {
         passwordHash: await argon2.hash('correct-password'),
       });
       runTransaction
-        .mockRejectedValueOnce({ code: 'P2034' })
+        .mockRejectedValueOnce({
+          constructor: { name: 'DriverAdapterError' },
+          message: 'TransactionWriteConflict',
+        })
         .mockImplementationOnce(
           async (
             callback: (transaction: {
               user: { findUnique: jest.Mock; update: jest.Mock };
+              passwordRecoveryToken: { updateMany: jest.Mock };
               session: { findFirst: jest.Mock; updateMany: jest.Mock };
             }) => Promise<unknown>,
           ) =>
@@ -645,6 +689,7 @@ describe('AuthService', () => {
                 findUnique: findPasswordUser,
                 update: updatePasswordUser,
               },
+              passwordRecoveryToken: { updateMany: updateRecovery },
               session: {
                 findFirst: findPasswordSession,
                 updateMany: updateManySession,

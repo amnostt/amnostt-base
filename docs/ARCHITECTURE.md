@@ -41,6 +41,7 @@ El backend es la autoridad para identidad, estado de cuenta, sesiones, roles y p
 - `POST /api/auth/logout`: revoca la sesión cuando puede identificarla, elimina la cookie y responde `204`; es idempotente si la cookie falta o no es válida.
 - `POST /api/auth/password`: cambia contraseña usando la contraseña actual; la nueva exige 12–128 caracteres.
 - `POST /api/auth/forgot-password`: solicita un enlace de recuperación con una respuesta genérica para cuentas activas, inactivas o inexistentes. Normaliza el correo, no crea ni reactiva cuentas y aplica límites independientes por IP y correo.
+- `POST /api/auth/reset-password`: consume `{ token, newPassword }` una sola vez, valida la huella de la contraseña vigente dentro de una transacción serializable, cambia la contraseña, invalida recuperaciones pendientes y revoca todas las sesiones. Responde `204` sin iniciar sesión ni emitir tokens y limpia la cookie refresh.
 - La cookie refresh es `HttpOnly`, `SameSite=Strict`, `Secure` según configuración y limitada a `/api/auth`. La base de datos almacena hashes, no refresh tokens en claro.
 - Access y refresh usan secretos distintos de al menos 32 bytes y claims que identifican usuario, sesión y tipo de token. Cada refresh válido rota el token y su hash; reutilizar un token rotado revoca la sesión.
 - Guards y servicios comprueban cuenta activa, sesión vigente/no revocada y permisos actuales. Errores de credenciales, cuenta o token no revelan cuál condición falló.
@@ -57,7 +58,7 @@ Los permisos siguen el formato `<recurso>:<acción>:<own|any>`. `any` abarca cua
 
 El servicio realiza un único `POST` de texto plano a Resend con `Authorization: Bearer`, `User-Agent` explícito y redirecciones rechazadas. Los fallos de proveedor, red, timeout o cuerpo inválido se convierten en una respuesta genérica; tras un fallo de envío se elimina condicionalmente solo el hash emitido por esa solicitud, sin borrar una fila reemplazante más nueva. Los límites de recuperación tienen namespace propio y valores predeterminados de 5 por IP y 3 por correo cada 15 minutos, sin compartir los filtros de login o registro.
 
-Las pruebas son deterministas y usan la inyección de Nest para bloquear envíos reales. Esta etapa implementa únicamente la solicitud; el endpoint de restablecimiento, consumo de un solo uso, invalidación al cambiar la contraseña y la interfaz web todavía no están implementados.
+Las pruebas son deterministas y usan la inyección de Nest para bloquear envíos reales. La API implementa ambos endpoints; la interfaz web todavía no está disponible y no existe una prueba de envío con un proveedor real. Los enlaces de restablecimiento usan un límite independiente por IP de 10 intentos cada 15 minutos, además de los límites de solicitud por IP y correo.
 
 ## Tasks
 

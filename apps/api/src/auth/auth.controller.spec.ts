@@ -8,6 +8,7 @@ describe('AuthController', () => {
   const login = jest.fn();
   const register = jest.fn();
   const requestPasswordRecovery = jest.fn();
+  const resetPassword = jest.fn();
   const changePassword = jest.fn();
   const refresh = jest.fn();
   const logout = jest.fn();
@@ -23,6 +24,7 @@ describe('AuthController', () => {
   } as unknown as AuthService;
   const passwordRecoveryService = {
     requestPasswordRecovery,
+    resetPassword,
   } as unknown as PasswordRecoveryService;
 
   const configService = {
@@ -73,6 +75,28 @@ describe('AuthController', () => {
 
     expect(requestPasswordRecovery).toHaveBeenCalledWith({
       email: 'member@example.com',
+    });
+  });
+
+  it('should reset the password, clear the refresh cookie, and return no content', async () => {
+    resetPassword.mockResolvedValue(undefined);
+
+    await expect(
+      controller.resetPassword(
+        { token: 'a'.repeat(43), newPassword: 'b'.repeat(12) },
+        response,
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(resetPassword).toHaveBeenCalledWith({
+      token: 'a'.repeat(43),
+      newPassword: 'b'.repeat(12),
+    });
+    expect(clearCookie).toHaveBeenCalledWith('refresh_token', {
+      httpOnly: true,
+      secure: false,
+      sameSite: 'strict',
+      path: '/api/auth',
     });
   });
 

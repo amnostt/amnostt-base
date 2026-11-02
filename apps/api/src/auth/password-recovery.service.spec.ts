@@ -31,7 +31,11 @@ function hash(value: string): string {
 describe('PasswordRecoveryService', () => {
   const findUser = jest.fn();
   const upsertRecovery = jest.fn();
+  const findRecovery = jest.fn();
+  const updateRecovery = jest.fn();
   const deleteRecovery = jest.fn();
+  const updatePassword = jest.fn();
+  const revokeSessions = jest.fn();
   const transaction = jest.fn();
   const send = jest.fn();
   const getConfig = jest.fn();
@@ -233,6 +237,89 @@ describe('PasswordRecoveryService', () => {
 
     expect(send).toHaveBeenCalledTimes(1);
     expect(deleteRecovery).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects an invalid reset token without changing credentials or sessions', async () => {
+    findRecovery.mockResolvedValue(null);
+    transaction.mockImplementation(
+      async (
+        callback: (client: {
+          passwordRecoveryToken: { findUnique: jest.Mock };
+        }) => Promise<unknown>,
+      ) =>
+        callback({
+          passwordRecoveryToken: { findUnique: findRecovery },
+        }),
+    );
+
+    await expect(
+      service.resetPassword({
+        token: 'a'.repeat(43),
+        newPassword: 'b'.repeat(12),
+      }),
+    ).rejects.toThrow('El enlace de recuperación no es válido o ha expirado.');
+
+    expect(updatePassword).not.toHaveBeenCalled();
+    expect(revokeSessions).not.toHaveBeenCalled();
+  });
+
+  it('consumes a valid token, changes the password, and revokes every session transactionally', async () => {
+    const now = new Date();
+    findRecovery.mockResolvedValue({
+      userId: 'user-id',
+      tokenHash: hash('a'.repeat(43)),
+      passwordHashFingerprint: hash('old-password-hash'),
+      expiresAt: new Date(now.getTime() + 60_000),
+      consumedAt: null,
+      user: { isActive: true, passwordHash: 'old-password-hash' },
+    });
+    updateRecovery.mockResolvedValue({ count: 1 });
+    transaction.mockImplementation(
+      async (
+        callback: (client: {
+          passwordRecoveryToken: {
+            findUnique: jest.Mock;
+            updateMany: jest.Mock;
+            deleteMany: jest.Mock;
+          };
+          user: { update: jest.Mock };
+          session: { updateMany: jest.Mock };
+        }) => Promise<unknown>,
+      ) =>
+        callback({
+          passwordRecoveryToken: {
+            findUnique: findRecovery,
+            updateMany: updateRecovery,
+            deleteMany: deleteRecovery,
+          },
+          user: { update: updatePassword },
+          session: { updateMany: revokeSessions },
+        }),
+    );
+
+    await expect(
+      service.resetPassword({
+        token: 'a'.repeat(43),
+        newPassword: 'b'.repeat(12),
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(updateRecovery).toHaveBeenCalledWith({
+      where: {
+        tokenHash: hash('a'.repeat(43)),
+        consumedAt: null,
+        expiresAt: { gt: expect.any(Date) as Date },
+      },
+      data: { consumedAt: expect.any(Date) as Date },
+    });
+    expect(updatePassword).toHaveBeenCalledWith({
+      where: { id: 'user-id' },
+      data: { passwordHash: expect.any(String) as string },
+    });
+    expect(revokeSessions).toHaveBeenCalledWith({
+      where: { userId: 'user-id', revokedAt: null },
+      data: { revokedAt: expect.any(Date) as Date },
+    });
   });
 
   it('uses serializable transactions for replacement', async () => {

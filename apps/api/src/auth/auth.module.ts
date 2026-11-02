@@ -10,6 +10,7 @@ import { RegistrationThrottleGuard } from './registration-throttle.guard';
 import { LoginThrottleGuard } from './login-throttle.guard';
 import { PasswordRecoveryService } from './password-recovery.service';
 import { PasswordRecoveryThrottleGuard } from './password-recovery-throttle.guard';
+import { PasswordResetThrottleGuard } from './password-reset-throttle.guard';
 
 @Module({
   imports: [JwtModule.register({}), MailModule],
@@ -23,6 +24,7 @@ import { PasswordRecoveryThrottleGuard } from './password-recovery-throttle.guar
     LoginThrottleGuard,
     PasswordRecoveryService,
     PasswordRecoveryThrottleGuard,
+    PasswordResetThrottleGuard,
   ],
   exports: [AuthService, AuthTokenService, AuthGuard, AuthorizationService],
 })

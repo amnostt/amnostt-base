@@ -1,14 +1,22 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as argon2 from 'argon2';
 import { Prisma } from '../generated/prisma/client';
 import { MailService } from '../mail/mail.service';
 import { PrismaService } from '../prisma.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { normalizeEmail } from './auth.types';
 
 export const PASSWORD_RECOVERY_MESSAGE =
   'Si existe una cuenta activa con ese correo, recibirás instrucciones para recuperar el acceso.';
+export const PASSWORD_RESET_ERROR =
+  'El enlace de recuperación no es válido o ha expirado.';
 
 const PASSWORD_RECOVERY_TTL_MS = 30 * 60 * 1000;
 const MAX_RECOVERY_TRANSACTION_RETRIES = 3;
@@ -73,6 +81,114 @@ export class PasswordRecoveryService {
     }
 
     return { message: PASSWORD_RECOVERY_MESSAGE };
+  }
+
+  async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<void> {
+    const token = resetPasswordDto.token;
+    if (!/^[A-Za-z0-9_-]{43}$/.test(token)) {
+      throw new UnauthorizedException(PASSWORD_RESET_ERROR);
+    }
+
+    const tokenHash = this.hash(token);
+    const passwordHash = await argon2.hash(resetPasswordDto.newPassword, {
+      type: argon2.argon2id,
+    });
+
+    for (
+      let attempt = 0;
+      attempt < MAX_RECOVERY_TRANSACTION_RETRIES;
+      attempt += 1
+    ) {
+      try {
+        await this.prisma.$transaction(
+          async (transaction) => {
+            const recovery = await transaction.passwordRecoveryToken.findUnique(
+              {
+                where: { tokenHash },
+                select: {
+                  userId: true,
+                  passwordHashFingerprint: true,
+                  expiresAt: true,
+                  consumedAt: true,
+                  user: {
+                    select: {
+                      isActive: true,
+                      passwordHash: true,
+                    },
+                  },
+                },
+              },
+            );
+            const now = new Date();
+
+            if (
+              !recovery ||
+              recovery.consumedAt !== null ||
+              recovery.expiresAt <= now ||
+              !recovery.user.isActive ||
+              recovery.passwordHashFingerprint !==
+                this.hash(recovery.user.passwordHash)
+            ) {
+              throw new UnauthorizedException(PASSWORD_RESET_ERROR);
+            }
+
+            const consumedAt = new Date();
+            const consumed = await transaction.passwordRecoveryToken.updateMany(
+              {
+                where: {
+                  tokenHash,
+                  consumedAt: null,
+                  expiresAt: { gt: now },
+                },
+                data: { consumedAt },
+              },
+            );
+
+            if (consumed.count !== 1) {
+              throw new UnauthorizedException(PASSWORD_RESET_ERROR);
+            }
+
+            await transaction.user.update({
+              where: { id: recovery.userId },
+              data: { passwordHash },
+            });
+            await transaction.passwordRecoveryToken.updateMany({
+              where: {
+                userId: recovery.userId,
+                consumedAt: null,
+              },
+              data: { consumedAt },
+            });
+            await transaction.session.updateMany({
+              where: {
+                userId: recovery.userId,
+                revokedAt: null,
+              },
+              data: { revokedAt: consumedAt },
+            });
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+        );
+        return;
+      } catch (error) {
+        if (error instanceof UnauthorizedException) {
+          throw error;
+        }
+
+        if (this.isTransactionConflict(error)) {
+          if (attempt + 1 < MAX_RECOVERY_TRANSACTION_RETRIES) continue;
+          throw new InternalServerErrorException(
+            'Password reset could not be completed',
+          );
+        }
+
+        throw error;
+      }
+    }
+
+    throw new InternalServerErrorException(
+      'Password reset could not be completed',
+    );
   }
 
   private async issueToken(user: RecoveryUser): Promise<IssuedRecoveryToken> {
@@ -161,6 +277,22 @@ export class PasswordRecoveryService {
       error !== null &&
       'code' in error &&
       (error as { code?: unknown }).code === code
+    );
+  }
+
+  private isTransactionConflict(error: unknown): boolean {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      return error.code === 'P2034';
+    }
+
+    if (typeof error !== 'object' || error === null) {
+      return false;
+    }
+
+    return (
+      error.constructor?.name === 'DriverAdapterError' &&
+      'message' in error &&
+      (error as { message?: unknown }).message === 'TransactionWriteConflict'
     );
   }
 }
