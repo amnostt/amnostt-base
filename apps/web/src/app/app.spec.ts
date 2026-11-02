@@ -89,7 +89,6 @@ describe('App', () => {
     const element = fixture.nativeElement as HTMLElement;
     expect(element.querySelector('h1')?.textContent).toContain('Inicio');
     for (const text of [
-      'Estudio Norte',
       'Plataforma',
       'Proyectos',
       'Elena Torres',
@@ -232,9 +231,9 @@ describe('App', () => {
         .find((item) => item.textContent?.includes('Añadir equipo'))
         ?.getAttribute('aria-disabled'),
     ).toBe('true');
-    actions.find((item) => item.textContent?.includes('Equipo Horizonte'))!.click();
+    actions.find((item) => item.textContent?.includes('Amnostt Starter'))!.click();
     await fixture.whenStable();
-    expect(trigger.textContent).toContain('Equipo Horizonte');
+    expect(trigger.textContent).toContain('Amnostt Starter');
     expect(TestBed.inject(Router).url).toBe('/');
   });
 

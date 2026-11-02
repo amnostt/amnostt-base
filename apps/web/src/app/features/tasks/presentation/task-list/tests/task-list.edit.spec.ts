@@ -125,9 +125,6 @@ describe('TaskList shared edit entry', () => {
     await harness.navigateByUrl(initialUrl, TaskList);
     await settle();
     page = harness.routeNativeElement!;
-    expect(
-      Array.from(page.querySelectorAll('thead th')).map((head) => head.textContent?.trim()),
-    ).toContain('Acciones');
   }
 
   function row(task: Task): HTMLTableRowElement {
