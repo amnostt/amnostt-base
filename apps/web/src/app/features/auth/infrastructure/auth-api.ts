@@ -1,7 +1,13 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Service } from '@angular/core';
 import { Observable, map, switchMap } from 'rxjs';
-import type { CurrentUser, LoginInput, Session } from '../domain/auth-models';
+import type {
+  CurrentUser,
+  ForgotPasswordInput,
+  ForgotPasswordResult,
+  LoginInput,
+  Session,
+} from '../domain/auth-models';
 
 @Service()
 export class AuthApi {
@@ -10,6 +16,14 @@ export class AuthApi {
   login(input: LoginInput): Observable<Session> {
     return this.http
       .post<{ data: Session }>('/api/auth/login', input, { withCredentials: true })
+      .pipe(map((response) => response.data));
+  }
+
+  forgotPassword(input: ForgotPasswordInput): Observable<ForgotPasswordResult> {
+    return this.http
+      .post<{ data: ForgotPasswordResult }>('/api/auth/forgot-password', input, {
+        withCredentials: true,
+      })
       .pipe(map((response) => response.data));
   }
 

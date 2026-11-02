@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideGalleryVerticalEnd } from '@ng-icons/lucide';
@@ -12,6 +12,7 @@ import { SessionStore } from '../../application/session-store';
   selector: 'app-login',
   imports: [
     ReactiveFormsModule,
+    RouterLink,
     NgIcon,
     ZardButtonComponent,
     ZardInputComponent,

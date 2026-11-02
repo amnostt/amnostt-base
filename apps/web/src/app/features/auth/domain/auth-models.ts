@@ -11,6 +11,14 @@ export interface LoginInput {
   password: string;
 }
 
+export interface ForgotPasswordInput {
+  email: string;
+}
+
+export interface ForgotPasswordResult {
+  message: string;
+}
+
 export interface Session {
   accessToken: string;
   currentUser: CurrentUser;

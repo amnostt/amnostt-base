@@ -74,6 +74,17 @@ describe('Protected application routes', () => {
     TestBed.inject(HttpTestingController).expectNone(() => true);
   });
 
+  it('keeps forgot-password public and outside the protected shell', async () => {
+    const fixture = await render('/forgot-password');
+    const element = fixture.nativeElement as HTMLElement;
+    expect(TestBed.inject(Router).url).toBe('/forgot-password');
+    expect(element.querySelector('app-forgot-password')).not.toBeNull();
+    expect(element.querySelector('app-app-shell')).toBeNull();
+    expect(element.querySelector('[data-slot="sidebar"]')).toBeNull();
+    expect(TestBed.inject(SessionStore).state().status).toBe('bootstrap-loading');
+    TestBed.inject(HttpTestingController).expectNone(() => true);
+  });
+
   it.each([true, false])(
     'routes a rendered login submission only after authenticated success (accepted: %s)',
     async (accepted) => {

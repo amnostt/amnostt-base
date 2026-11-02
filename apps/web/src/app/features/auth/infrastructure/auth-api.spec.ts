@@ -2,7 +2,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
-import type { LoginInput, Session } from '../domain/auth-models';
+import type { ForgotPasswordInput, LoginInput, Session } from '../domain/auth-models';
 import { AuthApi } from './auth-api';
 
 describe('AuthApi', () => {
@@ -47,6 +47,38 @@ describe('AuthApi', () => {
 
     request.flush({ data: session });
     expect(await result).toEqual(session);
+  });
+
+  it('posts a forgot-password email with cookies and returns the unwrapped message', async () => {
+    const input: ForgotPasswordInput = { email: 'maria@example.com' };
+    const result = firstValueFrom(service.forgotPassword(input));
+    const request = http.expectOne('/api/auth/forgot-password');
+
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual(input);
+    expect(request.request.withCredentials).toBe(true);
+    expect(request.request.headers.has('Authorization')).toBe(false);
+
+    request.flush({
+      data: {
+        message:
+          'Si existe una cuenta activa con ese correo, recibirás instrucciones para recuperar el acceso.',
+      },
+    });
+    await expect(result).resolves.toEqual({
+      message:
+        'Si existe una cuenta activa con ese correo, recibirás instrucciones para recuperar el acceso.',
+    });
+  });
+
+  it('propagates a forgot-password failure without exposing its server message', async () => {
+    const result = firstValueFrom(service.forgotPassword({ email: 'maria@example.com' }));
+    const failure = { error: { code: 'TOO_MANY_REQUESTS', message: 'private throttle detail' } };
+    http
+      .expectOne('/api/auth/forgot-password')
+      .flush(failure, { status: 429, statusText: 'Too Many Requests' });
+
+    await expect(result).rejects.toMatchObject({ status: 429, error: failure });
   });
 
   it('propagates rejected credentials without producing a session', async () => {

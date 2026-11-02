@@ -17,6 +17,14 @@ export const routes: Routes = [
     title: 'Iniciar sesión',
   },
   {
+    path: 'forgot-password',
+    loadComponent: () =>
+      import('./features/auth/presentation/forgot-password/forgot-password').then(
+        (module) => module.ForgotPassword,
+      ),
+    title: 'Recuperar contraseña',
+  },
+  {
     path: '',
     component: AppShell,
     canActivate: [authGuard],

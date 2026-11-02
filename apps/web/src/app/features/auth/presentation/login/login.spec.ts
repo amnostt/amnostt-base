@@ -128,9 +128,13 @@ describe('Login presentation', () => {
     expect(page.querySelector('button[type="submit"]')?.textContent?.trim()).toBe('Iniciar sesión');
   });
 
-  it('keeps secondary actions visible but explicitly unavailable', () => {
-    const labels = ['¿Olvidaste tu contraseña?', 'Continuar con GitHub', 'Regístrate'];
-    for (const label of labels) {
+  it('activates the password-recovery link while keeping other secondary actions unavailable', () => {
+    const recoveryLink = Array.from(page.querySelectorAll<HTMLAnchorElement>('a')).find(
+      (element) => element.textContent?.trim() === '¿Olvidaste tu contraseña?',
+    );
+    expect(recoveryLink?.getAttribute('href')).toBe('/forgot-password');
+
+    for (const label of ['Continuar con GitHub', 'Regístrate']) {
       const button = Array.from(page.querySelectorAll<HTMLButtonElement>('button')).find(
         (element) => element.textContent?.trim() === label,
       );
