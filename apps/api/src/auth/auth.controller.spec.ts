@@ -3,6 +3,7 @@ import { Request, Response } from 'express';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { PasswordRecoveryService } from './password-recovery.service';
+import { GoogleIdentityService } from './google-identity.service';
 
 describe('AuthController', () => {
   const login = jest.fn();
@@ -10,6 +11,9 @@ describe('AuthController', () => {
   const requestPasswordRecovery = jest.fn();
   const resetPassword = jest.fn();
   const changePassword = jest.fn();
+  const getStatus = jest.fn();
+  const createChallenge = jest.fn();
+  const completeLink = jest.fn();
   const refresh = jest.fn();
   const logout = jest.fn();
   const cookie = jest.fn();
@@ -26,6 +30,11 @@ describe('AuthController', () => {
     requestPasswordRecovery,
     resetPassword,
   } as unknown as PasswordRecoveryService;
+  const googleIdentityService = {
+    getStatus,
+    createChallenge,
+    completeLink,
+  } as unknown as GoogleIdentityService;
 
   const configService = {
     get: jest.fn((key: string) => {
@@ -53,6 +62,7 @@ describe('AuthController', () => {
   const controller = new AuthController(
     authService,
     passwordRecoveryService,
+    googleIdentityService,
     configService,
   );
 
@@ -205,6 +215,7 @@ describe('AuthController', () => {
         new AuthController(
           authService,
           passwordRecoveryService,
+          googleIdentityService,
           productionConfigService,
         ),
     ).toThrow('AUTH_COOKIE_SECURE must be true in production');
@@ -225,6 +236,7 @@ describe('AuthController', () => {
     const productionController = new AuthController(
       authService,
       passwordRecoveryService,
+      googleIdentityService,
       productionConfigService,
     );
 

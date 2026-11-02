@@ -11,6 +11,8 @@ import { LoginThrottleGuard } from './login-throttle.guard';
 import { PasswordRecoveryService } from './password-recovery.service';
 import { PasswordRecoveryThrottleGuard } from './password-recovery-throttle.guard';
 import { PasswordResetThrottleGuard } from './password-reset-throttle.guard';
+import { GoogleIdentityService } from './google-identity.service';
+import { GoogleTokenVerifier } from './google-token-verifier';
 
 @Module({
   imports: [JwtModule.register({}), MailModule],
@@ -25,6 +27,8 @@ import { PasswordResetThrottleGuard } from './password-reset-throttle.guard';
     PasswordRecoveryService,
     PasswordRecoveryThrottleGuard,
     PasswordResetThrottleGuard,
+    GoogleIdentityService,
+    GoogleTokenVerifier,
   ],
   exports: [AuthService, AuthTokenService, AuthGuard, AuthorizationService],
 })

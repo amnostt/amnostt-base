@@ -27,6 +27,8 @@ import { LoginThrottleGuard } from './login-throttle.guard';
 import { PasswordRecoveryService } from './password-recovery.service';
 import { PasswordRecoveryThrottleGuard } from './password-recovery-throttle.guard';
 import { PasswordResetThrottleGuard } from './password-reset-throttle.guard';
+import { GoogleIdentityService } from './google-identity.service';
+import { GoogleLinkDto } from './dto/google-link.dto';
 
 const REFRESH_COOKIE_NAME = 'refresh_token';
 const REFRESH_COOKIE_PATH = '/api/auth';
@@ -39,6 +41,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly passwordRecoveryService: PasswordRecoveryService,
+    private readonly googleIdentityService: GoogleIdentityService,
     configService: ConfigService,
   ) {
     this.cookieSecure = this.getBoolean(configService, 'AUTH_COOKIE_SECURE');
@@ -52,6 +55,45 @@ export class AuthController {
     this.refreshTtlSeconds = this.getPositiveInteger(
       configService,
       'JWT_REFRESH_TTL_SECONDS',
+    );
+  }
+
+  @Get('google/status')
+  @UseGuards(AuthGuard)
+  googleStatus(@CurrentUserDecorator() currentUser: CurrentUser): Promise<{
+    provider: 'google';
+    enabled: boolean;
+    clientId: string | null;
+    linked: boolean;
+  }> {
+    return this.googleIdentityService.getStatus(currentUser.id);
+  }
+
+  @Post('google/link/challenge')
+  @HttpCode(HttpStatus.CREATED)
+  @UseGuards(AuthGuard)
+  googleLinkChallenge(
+    @CurrentUserDecorator() currentUser: CurrentUser,
+    @CurrentSessionId() sessionId: string,
+  ) {
+    return this.googleIdentityService.createChallenge(
+      currentUser.id,
+      sessionId,
+    );
+  }
+
+  @Post('google/link')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(AuthGuard)
+  googleLink(
+    @CurrentUserDecorator() currentUser: CurrentUser,
+    @CurrentSessionId() sessionId: string,
+    @Body() linkDto: GoogleLinkDto,
+  ) {
+    return this.googleIdentityService.completeLink(
+      currentUser.id,
+      sessionId,
+      linkDto,
     );
   }
 

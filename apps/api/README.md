@@ -35,6 +35,18 @@ Configura `AUTH_PASSWORD_RESET_URL` con una URL fija de la web. Debe ser HTTP(S)
 
 Los restablecimientos tienen un límite independiente por IP de 10 intentos cada 15 minutos, configurable mediante `AUTH_PASSWORD_RESET_IP_LIMIT` y `AUTH_PASSWORD_RESET_IP_TTL_SECONDS`. Esta etapa implementa ambos endpoints de API. La interfaz web todavía no está disponible y las pruebas simulan el proveedor de correo; no existe prueba de envío con un proveedor real.
 
+## Vinculación de identidad Google
+
+La API solo habilita Google cuando `GOOGLE_CLIENT_ID` contiene el client ID público de una aplicación web. No requiere un secreto de cliente para el flujo GIS popup; si falta la configuración, la API puede iniciar, `GET /api/auth/google/status` devuelve `enabled: false` y los endpoints de vinculación fallan cerradamente con `503`.
+
+La pantalla autenticada usa este contrato:
+
+1. `GET /api/auth/google/status` devuelve `{ provider: "google", enabled, clientId, linked }`. No incluye el `sub`, tokens, hashes ni nonces.
+2. `POST /api/auth/google/link/challenge` no recibe cuerpo y devuelve `201` con `{ challengeId, nonce, expiresAt }`. El challenge queda ligado al usuario y a la sesión local vigente durante diez minutos.
+3. `POST /api/auth/google/link` recibe `{ challengeId, credential }`, donde `credential` es el ID token entregado por GIS. El servidor valida firma, audiencia, issuer y expiración mediante `google-auth-library`, además de `sub`, `email_verified`, nonce y coincidencia de correo normalizado. Responde `{ provider: "google", linked: true }`.
+
+El challenge se consume una sola vez dentro de una transacción serializable. Una identidad Google solo puede pertenecer a un usuario y un usuario solo puede tener una identidad; un conflicto no cambia la propiedad existente ni la contraseña, correo, rol o sesiones locales. Esta etapa no implementa el login Google ni la interfaz web.
+
 ## Tests
 
 ```bash

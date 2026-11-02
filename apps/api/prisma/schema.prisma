@@ -20,11 +20,40 @@ model User {
   sessions              Session[]
   tasks                 Task[]
   passwordRecoveryToken PasswordRecoveryToken?
+  googleIdentity        GoogleIdentity?
+  googleLinkChallenges  GoogleLinkChallenge[]
   createdAt             DateTime               @default(now()) @map("created_at")
   updatedAt             DateTime               @updatedAt @map("updated_at")
 
   @@index([roleId])
   @@map("users")
+}
+
+model GoogleIdentity {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  googleSub String   @unique @map("google_sub")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("google_identities")
+}
+
+model GoogleLinkChallenge {
+  id         String    @id @default(uuid()) @db.Uuid
+  userId     String    @map("user_id") @db.Uuid
+  sessionId  String    @map("session_id") @db.Uuid
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session    Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  nonceHash  String    @unique @map("nonce_hash")
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([userId, sessionId])
+  @@index([expiresAt])
+  @@map("google_link_challenges")
 }
 
 model PasswordRecoveryToken {
@@ -81,9 +110,10 @@ model Session {
   user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   refreshTokenHash String    @unique @map("refresh_token_hash")
   expiresAt        DateTime  @map("expires_at")
-  revokedAt        DateTime? @map("revoked_at")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  revokedAt            DateTime? @map("revoked_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+  googleLinkChallenges  GoogleLinkChallenge[]
 
   @@index([userId])
   @@map("sessions")
