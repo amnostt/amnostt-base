@@ -55,9 +55,18 @@ describe('Protected application routes', () => {
     await login;
   }
 
+  async function settleGoogleConfig() {
+    const http = TestBed.inject(HttpTestingController);
+    for (const request of http.match('/api/auth/google/config')) {
+      request.flush({ data: { provider: 'google', enabled: false, clientId: null } });
+    }
+  }
+
   async function render(path: string) {
     const fixture = TestBed.createComponent(App);
     await TestBed.inject(Router).navigateByUrl(path);
+    fixture.detectChanges();
+    await settleGoogleConfig();
     await fixture.whenStable();
     fixture.detectChanges();
     return fixture;
@@ -105,6 +114,8 @@ describe('Protected application routes', () => {
     reset.flush(null, { status: 204, statusText: 'No Content' });
 
     await vi.waitFor(() => expect(router.url).toBe('/login'));
+    fixture.detectChanges();
+    await settleGoogleConfig();
     await fixture.whenStable();
     fixture.detectChanges();
 
@@ -201,7 +212,7 @@ describe('Protected application routes', () => {
     },
   );
 
-  it.each(['/', '/403', '/no-existe', '/tasks'])(
+  it.each(['/', '/403', '/no-existe', '/tasks', '/account'])(
     'redirects an anonymous visitor from %s without rendering protected content',
     async (path) => {
       await resolveAnonymousSession();
@@ -316,6 +327,32 @@ describe('Protected application routes', () => {
     http.expectNone(() => true);
   });
 
+  it('renders Cuenta inside the protected shell and uses the captured session for Google status', async () => {
+    await authenticate();
+    const fixture = await render('/account');
+    const http = TestBed.inject(HttpTestingController);
+    const status = http.expectOne('/api/auth/google/status');
+
+    expect(status.request.method).toBe('GET');
+    expect(status.request.withCredentials).toBe(true);
+    expect(status.request.headers.get('Authorization')).toBe('Bearer example-access-token');
+    status.flush({
+      data: { provider: 'google', enabled: true, clientId: 'google-client-id', linked: false },
+    });
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(TestBed.inject(Router).url).toBe('/account');
+    expect(element.querySelector('app-app-shell')).not.toBeNull();
+    expect(element.querySelector('app-account')).not.toBeNull();
+    expect(element.querySelector('h1')?.textContent).toContain('Cuenta');
+    expect(element.querySelector('[z-breadcrumb-page]')?.textContent).toContain('Cuenta');
+    expect(document.title).toBe('Cuenta');
+    expect(element.textContent).not.toContain('example-access-token');
+    http.expectNone(() => true);
+  });
+
   it('waits for shared restoration and admits the visitor only after user lookup', async () => {
     const store = TestBed.inject(SessionStore);
     const http = TestBed.inject(HttpTestingController);
@@ -359,6 +396,7 @@ describe('Protected application routes', () => {
     expect(await navigation).toBe(true);
     await fixture.whenStable();
     fixture.detectChanges();
+    await settleGoogleConfig();
     expect(router.url).toBe('/login');
     expect(fixture.nativeElement.querySelector('app-login')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('app-app-shell')).toBeNull();
@@ -374,6 +412,7 @@ describe('Protected application routes', () => {
     await TestBed.inject(Router).navigateByUrl('/403');
     await fixture.whenStable();
     fixture.detectChanges();
+    await settleGoogleConfig();
     expect(TestBed.inject(Router).url).toBe('/login');
     expect(fixture.nativeElement.querySelector('app-login')).not.toBeNull();
     expect(fixture.nativeElement.querySelector('app-app-shell')).toBeNull();

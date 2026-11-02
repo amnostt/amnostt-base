@@ -50,6 +50,12 @@ export const routes: Routes = [
         title: 'Acceso denegado',
       },
       {
+        path: 'account',
+        loadComponent: () =>
+          import('./features/account/presentation/account').then((module) => module.Account),
+        title: 'Cuenta',
+      },
+      {
         path: 'tasks',
         component: TaskList,
         title: 'Tareas',

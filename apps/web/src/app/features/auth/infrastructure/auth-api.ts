@@ -5,6 +5,9 @@ import type {
   CurrentUser,
   ForgotPasswordInput,
   ForgotPasswordResult,
+  GoogleLinkChallenge,
+  GoogleLoginInput,
+  GoogleProviderConfig,
   LoginInput,
   ResetPasswordInput,
   Session,
@@ -17,6 +20,26 @@ export class AuthApi {
   login(input: LoginInput): Observable<Session> {
     return this.http
       .post<{ data: Session }>('/api/auth/login', input, { withCredentials: true })
+      .pipe(map((response) => response.data));
+  }
+
+  googleConfig(): Observable<GoogleProviderConfig> {
+    return this.http
+      .get<{ data: GoogleProviderConfig }>('/api/auth/google/config', { withCredentials: true })
+      .pipe(map((response) => response.data));
+  }
+
+  googleLoginChallenge(): Observable<GoogleLinkChallenge> {
+    return this.http
+      .post<{ data: GoogleLinkChallenge }>('/api/auth/google/login/challenge', null, {
+        withCredentials: true,
+      })
+      .pipe(map((response) => response.data));
+  }
+
+  googleLogin(input: GoogleLoginInput): Observable<Session> {
+    return this.http
+      .post<{ data: Session }>('/api/auth/google/login', input, { withCredentials: true })
       .pipe(map((response) => response.data));
   }
 

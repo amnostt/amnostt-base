@@ -11,6 +11,32 @@ export interface LoginInput {
   password: string;
 }
 
+export interface GoogleLoginInput {
+  challengeId: string;
+  credential: string;
+}
+
+export interface GoogleProviderConfig {
+  provider: 'google';
+  enabled: boolean;
+  clientId: string | null;
+}
+
+export interface GoogleLinkStatus extends GoogleProviderConfig {
+  linked: boolean;
+}
+
+export interface GoogleLinkChallenge {
+  challengeId: string;
+  nonce: string;
+  expiresAt: string;
+}
+
+export interface GoogleLinkResult {
+  provider: 'google';
+  linked: true;
+}
+
 export interface ForgotPasswordInput {
   email: string;
 }
@@ -33,6 +59,7 @@ export type SessionState =
   | { status: 'bootstrap-loading' }
   | { status: 'unauthenticated'; notice?: 'session-expired' }
   | { status: 'login-submitting'; email: string }
+  | { status: 'google-login-submitting' }
   | { status: 'register-submitting'; email: string }
   | { status: 'authenticated'; user: CurrentUser }
   | { status: 'request-refreshing' }

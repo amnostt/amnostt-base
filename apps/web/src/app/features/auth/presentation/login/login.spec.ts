@@ -30,6 +30,9 @@ describe('Login presentation', () => {
     http = TestBed.inject(HttpTestingController);
     store = TestBed.inject(SessionStore);
     fixture = TestBed.createComponent(Login);
+    http.expectOne('/api/auth/google/config').flush({
+      data: { provider: 'google', enabled: false, clientId: null },
+    });
     await fixture.whenStable();
     page = fixture.nativeElement as HTMLElement;
   });

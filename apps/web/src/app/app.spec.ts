@@ -54,9 +54,18 @@ describe('App', () => {
     expect(app).toBeTruthy();
   });
 
+  async function settleGoogleConfig() {
+    const http = TestBed.inject(HttpTestingController);
+    for (const request of http.match('/api/auth/google/config')) {
+      request.flush({ data: { provider: 'google', enabled: false, clientId: null } });
+    }
+  }
+
   async function render(path = '/') {
     const fixture = TestBed.createComponent(App);
     await TestBed.inject(Router).navigateByUrl(path);
+    fixture.detectChanges();
+    await settleGoogleConfig();
     await fixture.whenStable();
     fixture.detectChanges();
     return fixture;
@@ -156,7 +165,12 @@ describe('App', () => {
     const menu = document.body.querySelector('[role="menu"]')!;
     expect(menu.textContent).toContain('Elena Torres');
     expect(menu.textContent).not.toContain('Datos de usuario ficticios');
-    for (const label of ['Mejorar plan', 'Cuenta', 'Facturación', 'Notificaciones']) {
+    const accountAction = Array.from(menu.querySelectorAll('[role="menuitem"]')).find((item) =>
+      item.textContent?.includes('Cuenta'),
+    );
+    expect(accountAction?.getAttribute('aria-disabled')).toBe('false');
+    expect(accountAction?.getAttribute('href')).toBe('/account');
+    for (const label of ['Mejorar plan', 'Facturación', 'Notificaciones']) {
       const action = Array.from(menu.querySelectorAll('[role="menuitem"]')).find((item) =>
         item.textContent?.includes(label),
       );
@@ -203,6 +217,7 @@ describe('App', () => {
       expect(TestBed.inject(SessionStore).state()).toEqual({ status: 'unauthenticated' });
       expect(element.querySelector('app-login')).not.toBeNull();
       expect(element.querySelector('app-app-shell')).toBeNull();
+      await settleGoogleConfig();
       expect(document.body.querySelector('[role="menu"]')).toBeNull();
       expect(document.body.querySelector('[role="alert"]')).toBeNull();
       expect(element.textContent).not.toMatch(
@@ -268,5 +283,30 @@ describe('App', () => {
     close.click();
     await fixture.whenStable();
     expect(dialog?.getAttribute('data-state')).toBe('closed');
+  });
+
+  it('opens Cuenta from the mobile user menu and closes the sidebar after navigation', async () => {
+    viewport.next({ matches: true, breakpoints: {} });
+    const fixture = await render();
+    const element = fixture.nativeElement as HTMLElement;
+    const http = TestBed.inject(HttpTestingController);
+    element.querySelector<HTMLButtonElement>('[data-slot="sidebar-trigger"]')!.click();
+    await fixture.whenStable();
+    element.querySelector<HTMLButtonElement>('[aria-label="Abrir menú de usuario"]')!.click();
+    await fixture.whenStable();
+
+    const accountLink = document.body.querySelector<HTMLAnchorElement>('a[href="/account"]');
+    expect(accountLink).not.toBeNull();
+    accountLink!.click();
+    const status = await vi.waitFor(() => http.expectOne('/api/auth/google/status'));
+    status.flush({
+      data: { provider: 'google', enabled: false, clientId: null, linked: false },
+    });
+    await vi.waitFor(() => expect(TestBed.inject(Router).url).toBe('/account'));
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(element.querySelector('[role="dialog"]')?.getAttribute('data-state')).toBe('closed');
+    expect(element.querySelector('app-account')).not.toBeNull();
   });
 });

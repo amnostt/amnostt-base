@@ -1,7 +1,12 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
-import type { CurrentUser, LoginInput, ResetPasswordInput } from '../domain/auth-models';
+import type {
+  CurrentUser,
+  GoogleLoginInput,
+  LoginInput,
+  ResetPasswordInput,
+} from '../domain/auth-models';
 import { SessionStore } from './session-store';
 
 describe('SessionStore', () => {
@@ -124,6 +129,59 @@ describe('SessionStore', () => {
     expect(service.state()).toEqual({ status: 'authenticated', user });
     expect(service.state()).not.toHaveProperty('accessToken');
     expect(JSON.stringify(service.state())).not.toContain(loginInput.password);
+  });
+
+  it('authenticates a Google login with the same stale-completion and private-token rules', async () => {
+    const input: GoogleLoginInput = { challengeId: 'challenge-id', credential: 'credential-value' };
+    const pending = service.loginWithGoogle(input);
+    expect(service.state()).toEqual({ status: 'google-login-submitting' });
+    const request = http.expectOne('/api/auth/google/login');
+    expect(request.request.body).toEqual(input);
+    expect(request.request.withCredentials).toBe(true);
+    expect(request.request.headers.has('Authorization')).toBe(false);
+
+    request.flush({ data: { accessToken: 'google-access-token', currentUser: user } });
+    await pending;
+
+    expect(service.state()).toEqual({ status: 'authenticated', user });
+    expect(JSON.stringify(service.state())).not.toContain('google-access-token');
+  });
+
+  it('does not let a stale Google login resurrect authentication after logout and relogin', async () => {
+    const pending = service.loginWithGoogle({
+      challengeId: 'challenge-id',
+      credential: 'credential-value',
+    });
+    const googleRequest = http.expectOne('/api/auth/google/login');
+    const logout = service.logout();
+    const logoutRequest = http.expectOne('/api/auth/logout');
+    logoutRequest.flush(null, { status: 204, statusText: 'No Content' });
+    await logout;
+    await authenticate();
+
+    googleRequest.flush({ data: { accessToken: 'stale-google-token', currentUser: olderUser } });
+    await pending;
+
+    expect(service.state()).toEqual({ status: 'authenticated', user });
+    expect(JSON.stringify(service.state())).not.toContain('stale-google-token');
+  });
+
+  it('clears a rejected Google login without exposing the provider response', async () => {
+    const pending = service.loginWithGoogle({
+      challengeId: 'challenge-id',
+      credential: 'credential-value',
+    });
+    http.expectOne('/api/auth/google/login').flush(
+      { error: { code: 'UNAUTHORIZED', message: 'private Google detail' } },
+      {
+        status: 401,
+        statusText: 'Unauthorized',
+      },
+    );
+
+    await expect(pending).rejects.toMatchObject({ status: 401 });
+    expect(service.state()).toEqual({ status: 'unauthenticated' });
+    expect(JSON.stringify(service.state())).not.toContain('private Google detail');
   });
 
   it('clears submission state and propagates a rejected login for the caller to handle', async () => {

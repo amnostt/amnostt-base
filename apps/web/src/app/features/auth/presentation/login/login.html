@@ -98,6 +98,37 @@
               </button>
             </div>
             <z-field-separator zContent="O continúa con" />
+            <div z-field class="flex flex-col gap-3">
+              @if (googleState() === 'loading') {
+                <p role="status" class="text-muted-foreground text-sm">Preparando Google…</p>
+              } @else if (googleState() === 'unavailable') {
+                <p class="text-muted-foreground text-sm">
+                  Google no está disponible en este momento.
+                </p>
+              } @else if (googleState() === 'error' || googleState() === 'idle') {
+                @if (googleError()) {
+                  <p role="alert" class="text-destructive text-sm">{{ googleError() }}</p>
+                }
+                <button z-button zType="outline" type="button" (click)="retryGoogle()">
+                  Reintentar Google
+                </button>
+              } @else {
+                <app-google-sign-in
+                  [request]="googleRequest()"
+                  (credential)="onGoogleCredential($event)"
+                  (failed)="onGoogleSdkFailure()"
+                />
+                @if (googleState() === 'submitting') {
+                  <p role="status" aria-live="polite" class="text-muted-foreground text-sm">
+                    Iniciando sesión con Google…
+                  </p>
+                } @else {
+                  <button z-button zType="outline" type="button" (click)="cancelGoogle()">
+                    Cancelar
+                  </button>
+                }
+              }
+            </div>
             <div z-field>
               <button
                 z-button

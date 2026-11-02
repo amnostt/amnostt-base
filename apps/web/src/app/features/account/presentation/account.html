@@ -1,0 +1,125 @@
+<main data-account-page class="mx-auto flex w-full max-w-4xl flex-col gap-6">
+  <header class="flex flex-col gap-1">
+    <h1 class="text-2xl font-semibold tracking-tight">Cuenta</h1>
+    <p class="text-muted-foreground text-sm">
+      Consulta tu información y administra la vinculación con Google.
+    </p>
+  </header>
+
+  <z-separator />
+
+  <section aria-labelledby="account-information-title" class="flex flex-col gap-4">
+    <div>
+      <h2 id="account-information-title" class="text-lg font-medium">Información de la cuenta</h2>
+      <p class="text-muted-foreground text-sm">Estos datos son de solo lectura.</p>
+    </div>
+    @if (user(); as user) {
+      <div class="flex items-center gap-3">
+        <z-avatar class="size-12" [zAlt]="user.name" [zFallback]="initials()" zSize="lg" />
+        <div class="min-w-0">
+          <p class="truncate font-medium">{{ user.name }}</p>
+          <p class="text-muted-foreground truncate text-sm">{{ user.email }}</p>
+        </div>
+      </div>
+      <dl class="grid gap-4 sm:grid-cols-2">
+        <div class="flex flex-col gap-1">
+          <dt class="text-muted-foreground text-sm">Nombre</dt>
+          <dd>{{ user.name }}</dd>
+        </div>
+        <div class="flex flex-col gap-1">
+          <dt class="text-muted-foreground text-sm">Correo electrónico</dt>
+          <dd>{{ user.email }}</dd>
+        </div>
+        <div class="flex flex-col gap-1">
+          <dt class="text-muted-foreground text-sm">Rol</dt>
+          <dd>{{ user.role }}</dd>
+        </div>
+      </dl>
+    }
+  </section>
+
+  <z-separator />
+
+  <section aria-labelledby="google-link-title" class="flex flex-col gap-4">
+    <div class="flex flex-col gap-1">
+      <div class="flex flex-wrap items-center gap-2">
+        <h2 id="google-link-title" class="text-lg font-medium">Google</h2>
+        @if (accountStatus() === 'linked' || linkStatus() === 'linked') {
+          <z-badge zType="secondary">Vinculado</z-badge>
+        } @else if (accountStatus() === 'unavailable') {
+          <z-badge zType="outline">No disponible</z-badge>
+        }
+      </div>
+      <p class="text-muted-foreground text-sm">
+        Usa Google únicamente para iniciar sesión en una cuenta que ya está vinculada.
+      </p>
+    </div>
+
+    @if (accountStatus() === 'loading') {
+      <p role="status" class="text-muted-foreground text-sm">Cargando estado de Google…</p>
+    } @else if (accountStatus() === 'error') {
+      <p role="alert" class="text-destructive text-sm">{{ errorMessage() }}</p>
+      <div>
+        <button z-button zType="outline" type="button" (click)="loadStatus()">Reintentar</button>
+      </div>
+    } @else if (accountStatus() === 'unavailable') {
+      <p class="text-muted-foreground text-sm">Google no está disponible en este momento.</p>
+    } @else if (accountStatus() === 'linked' || linkStatus() === 'linked') {
+      <p role="status" class="text-sm">
+        Google está vinculado a tu cuenta con el correo verificado {{ user()?.email }}.
+      </p>
+    } @else if (linkStatus() === 'idle' || linkStatus() === 'error') {
+      <p class="text-muted-foreground max-w-prose text-sm">
+        La vinculación requiere una cuenta Google con el mismo correo verificado:
+        <strong class="font-medium">{{ user()?.email }}</strong
+        >.
+      </p>
+      @if (linkError()) {
+        <p role="alert" class="text-destructive text-sm">{{ linkError() }}</p>
+      }
+      <div>
+        <button
+          z-button
+          type="button"
+          data-action="start-google-link"
+          [zLoading]="isLinking()"
+          [zDisabled]="isLinking()"
+          (click)="startGoogleLink()"
+        >
+          Vincular con Google
+        </button>
+      </div>
+    } @else {
+      <p class="text-muted-foreground text-sm">
+        Continúa con Google para vincularlo a esta cuenta. El correo debe coincidir.
+      </p>
+      <app-google-sign-in
+        [request]="googleRequest()"
+        (credential)="onGoogleCredential($event)"
+        (failed)="onGoogleSdkFailure()"
+      />
+      @if (linkStatus() === 'submitting') {
+        <p role="status" aria-live="polite" class="text-muted-foreground text-sm">
+          Confirmando la vinculación…
+        </p>
+      }
+      @if (linkError()) {
+        <p role="alert" class="text-destructive text-sm">{{ linkError() }}</p>
+      }
+      <div class="flex flex-wrap items-center gap-3">
+        <button
+          z-button
+          zType="outline"
+          type="button"
+          [zDisabled]="linkStatus() === 'submitting'"
+          (click)="cancelGoogleLink()"
+        >
+          Cancelar
+        </button>
+        <span class="text-muted-foreground text-sm"
+          >Puedes cancelar y reintentar si cierras la ventana.</span
+        >
+      </div>
+    }
+  </section>
+</main>

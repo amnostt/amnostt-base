@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { firstValueFrom } from 'rxjs';
 import type {
   ForgotPasswordInput,
+  GoogleLoginInput,
   LoginInput,
   ResetPasswordInput,
   Session,
@@ -166,6 +167,71 @@ describe('AuthApi', () => {
 
     await expect(result).rejects.toMatchObject({ status: 401 });
     http.expectNone('/api/auth/refresh');
+  });
+
+  it('loads the public Google config with cookies and without an access token', async () => {
+    const result = firstValueFrom(service.googleConfig());
+    const request = http.expectOne('/api/auth/google/config');
+
+    expect(request.request.method).toBe('GET');
+    expect(request.request.withCredentials).toBe(true);
+    expect(request.request.headers.has('Authorization')).toBe(false);
+
+    request.flush({
+      data: { provider: 'google', enabled: true, clientId: 'google-client-id' },
+    });
+    await expect(result).resolves.toEqual({
+      provider: 'google',
+      enabled: true,
+      clientId: 'google-client-id',
+    });
+  });
+
+  it('creates a public Google login challenge without a body or access token', async () => {
+    const result = firstValueFrom(service.googleLoginChallenge());
+    const request = http.expectOne('/api/auth/google/login/challenge');
+
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toBeNull();
+    expect(request.request.withCredentials).toBe(true);
+    expect(request.request.headers.has('Authorization')).toBe(false);
+
+    request.flush({
+      data: {
+        challengeId: 'challenge-id',
+        nonce: 'nonce-value',
+        expiresAt: '2030-01-01T00:00:00.000Z',
+      },
+    });
+    await expect(result).resolves.toEqual({
+      challengeId: 'challenge-id',
+      nonce: 'nonce-value',
+      expiresAt: '2030-01-01T00:00:00.000Z',
+    });
+  });
+
+  it('submits Google login proof with cookies and returns the existing session envelope', async () => {
+    const input: GoogleLoginInput = { challengeId: 'challenge-id', credential: 'credential-value' };
+    const session: Session = {
+      accessToken: 'google-access-token',
+      currentUser: {
+        id: 'example-user-id',
+        email: 'maria@example.com',
+        name: 'María García',
+        role: 'Member',
+        permissions: [],
+      },
+    };
+    const result = firstValueFrom(service.googleLogin(input));
+    const request = http.expectOne('/api/auth/google/login');
+
+    expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual(input);
+    expect(request.request.withCredentials).toBe(true);
+    expect(request.request.headers.has('Authorization')).toBe(false);
+
+    request.flush({ data: session });
+    await expect(result).resolves.toEqual(session);
   });
 
   it('posts logout with cookies and accepts an empty 204 response', async () => {

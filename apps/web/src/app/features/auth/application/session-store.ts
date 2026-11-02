@@ -1,5 +1,10 @@
 import { inject, Service, signal } from '@angular/core';
-import { LoginInput, ResetPasswordInput, SessionState } from '../domain/auth-models';
+import {
+  GoogleLoginInput,
+  LoginInput,
+  ResetPasswordInput,
+  SessionState,
+} from '../domain/auth-models';
 import { AuthApi } from '../infrastructure/auth-api';
 import { firstValueFrom } from 'rxjs';
 
@@ -14,8 +19,10 @@ export class SessionStore {
   private readonly accessToken = signal<string | undefined>(undefined);
   private bootstrapPromise: Promise<void> | undefined;
   private sessionRevision = 0;
+  private readonly revisionState = signal(0);
 
   readonly state = this.sessionState.asReadonly();
+  readonly revision = this.revisionState.asReadonly();
 
   bootstrap(): Promise<void> {
     if (this.bootstrapPromise) {
@@ -40,7 +47,7 @@ export class SessionStore {
       return;
     }
 
-    const revision = ++this.sessionRevision;
+    const revision = this.advanceRevision();
 
     this.sessionState.set({
       status: 'login-submitting',
@@ -68,10 +75,39 @@ export class SessionStore {
     }
   }
 
+  async loginWithGoogle(input: GoogleLoginInput): Promise<void> {
+    if (this.isAuthOperationPending()) {
+      return;
+    }
+
+    const revision = this.advanceRevision();
+    this.sessionState.set({ status: 'google-login-submitting' });
+
+    try {
+      const session = await firstValueFrom(this.auth.googleLogin(input));
+
+      if (revision !== this.sessionRevision) {
+        return;
+      }
+
+      this.accessToken.set(session.accessToken);
+      this.sessionState.set({
+        status: 'authenticated',
+        user: session.currentUser,
+      });
+    } catch (error) {
+      if (revision === this.sessionRevision) {
+        this.accessToken.set(undefined);
+        this.sessionState.set({ status: 'unauthenticated' });
+      }
+      throw error;
+    }
+  }
+
   async resetPassword(input: ResetPasswordInput): Promise<void> {
     await firstValueFrom(this.auth.resetPassword(input));
 
-    ++this.sessionRevision;
+    this.advanceRevision();
     this.accessToken.set(undefined);
     this.sessionState.set({ status: 'unauthenticated' });
   }
@@ -81,7 +117,7 @@ export class SessionStore {
       return;
     }
 
-    ++this.sessionRevision;
+    this.advanceRevision();
     this.accessToken.set(undefined);
     this.sessionState.set({ status: 'logout-pending' });
 
@@ -113,6 +149,12 @@ export class SessionStore {
     return result;
   }
 
+  private advanceRevision(): number {
+    this.sessionRevision += 1;
+    this.revisionState.set(this.sessionRevision);
+    return this.sessionRevision;
+  }
+
   private async restoreSession(revision: number): Promise<void> {
     try {
       const session = await firstValueFrom(this.auth.restore());
@@ -141,6 +183,7 @@ export class SessionStore {
 
     return (
       status === 'login-submitting' ||
+      status === 'google-login-submitting' ||
       status === 'register-submitting' ||
       status === 'logout-pending'
     );
